@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ETLProject")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+efec9d9691c2d2c45307d1bbf6c3631d784a6bd2")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+add49d76bc2cc9cbc68b08f99c9f1979eddb6149")]
 [assembly: System.Reflection.AssemblyProductAttribute("ETLProject")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ETLProject")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
