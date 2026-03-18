@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ETL POS — Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #080c10;
+  --surface:  #0d1117;
+  --surface2: #131a24;
+  --border:   #1e2d3d;
+  --accent:   #00d4ff;
+  --accent2:  #7c6af7;
+  --green:    #00e5a0;
+  --amber:    #ffb340;
+  --red:      #ff4d6a;
+  --text:     #c9d8e8;
+  --muted:    #4a6070;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glow orbs */
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px; left: -200px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(124,106,247,.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+/* Header */
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.brand { display: flex; flex-direction: column; gap: 4px; }
+
+.brand h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.brand p { color: var(--muted); font-size: 12px; }
+
+.header-controls { display: flex; align-items: center; gap: 12px; }
+
+.pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pill .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.pill.connected .dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+.pill.error .dot     { background: var(--red); }
+.pill.connected      { border-color: rgba(0,229,160,.2); color: var(--green); }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* Stat cards */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+@media(max-width:700px){ .stats { grid-template-columns: repeat(2,1fr); } }
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent-color, var(--accent));
+  opacity: .6;
+}
+
+.stat-card:nth-child(1) { --accent-color: var(--accent); }
+.stat-card:nth-child(2) { --accent-color: var(--green); }
+.stat-card:nth-child(3) { --accent-color: var(--accent2); }
+.stat-card:nth-child(4) { --accent-color: var(--amber); }
+
+.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+  transition: all .3s;
+}
+.stat-value.updated { color: var(--accent-color, var(--accent)); }
+.stat-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+/* Main layout */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+}
+@media(max-width:900px){ .main-grid { grid-template-columns: 1fr; } }
+
+/* Log panel */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title .icon {
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  background: rgba(0,212,255,.1);
+  color: var(--accent);
+}
+
+.panel-actions { display: flex; gap: 8px; }
+
+.btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  transition: all .15s;
+}
+.btn:hover { background: var(--surface2); color: var(--text); border-color: #2a3a4a; }
+
+/* Log stream */
+#log-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 420px;
+  max-height: 520px;
+  scroll-behavior: smooth;
+}
+
+#log-stream::-webkit-scrollbar { width: 4px; }
+#log-stream::-webkit-scrollbar-track { background: transparent; }
+#log-stream::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.log-entry {
+  display: flex;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 3px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  animation: fadeIn .2s ease;
+  transition: background .15s;
+}
+.log-entry:hover { background: var(--surface2); }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+.log-time { color: var(--muted); flex-shrink: 0; font-size: 10px; padding-top: 1px; }
+.log-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.badge-info  { background: rgba(0,212,255,.12); color: var(--accent); }
+.badge-warn  { background: rgba(255,179,64,.12); color: var(--amber); }
+.badge-error { background: rgba(255,77,106,.12); color: var(--red); }
+.badge-ok    { background: rgba(0,229,160,.12); color: var(--green); }
+
+.log-source { color: var(--accent2); font-size: 10px; flex-shrink: 0; }
+.log-msg { color: var(--text); flex: 1; word-break: break-word; }
+
+.log-entry.info  .log-msg { color: #a0b8c8; }
+.log-entry.warn  .log-msg { color: var(--amber); }
+.log-entry.error .log-msg { color: var(--red); }
+.log-entry.ok    .log-msg { color: var(--green); }
+
+/* Empty state */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 300px; gap: 12px; color: var(--muted);
+}
+.empty-state .big { font-size: 36px; }
+.empty-state p { font-size: 12px; }
+
+/* Side panels */
+.side-panels { display: flex; flex-direction: column; gap: 14px; }
+
+/* Source cards */
+.source-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.source-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+
+.source-name {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600;
+  font-family: var(--font-display);
+  color: #fff;
+}
+
+.source-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+
+.status-tag {
+  font-size: 10px; font-weight: 600;
+  padding: 3px 8px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.status-idle    { background: rgba(74,96,112,.2);   color: var(--muted);  border: 1px solid rgba(74,96,112,.3); }
+.status-running { background: rgba(0,212,255,.1);   color: var(--accent); border: 1px solid rgba(0,212,255,.2); animation: statusPulse 1.5s infinite; }
+.status-done    { background: rgba(0,229,160,.1);   color: var(--green);  border: 1px solid rgba(0,229,160,.2); }
+.status-error   { background: rgba(255,77,106,.1);  color: var(--red);    border: 1px solid rgba(255,77,106,.2); }
+.status-skipped { background: rgba(255,179,64,.08); color: var(--amber);  border: 1px solid rgba(255,179,64,.15); }
+
+@keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+.source-body { padding: 12px 16px; }
+
+.source-rows { display: flex; flex-direction: column; gap: 7px; }
+
+.source-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px;
+}
+
+.source-row-label { color: var(--muted); }
+.source-row-val   { color: var(--text); font-weight: 600; }
+.source-row-val.accent  { color: var(--accent); }
+.source-row-val.green   { color: var(--green); }
+.source-row-val.amber   { color: var(--amber); }
+
+/* Progress bar */
+.progress-wrap { margin-top: 10px; }
+.progress-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.progress-bar { height: 3px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--fill-from, var(--accent)), var(--fill-to, var(--accent2)));
+  width: 0%;
+  transition: width .6s ease;
+}
+
+/* Timeline */
+.timeline { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.tl-item { display: flex; gap: 10px; align-items: flex-start; }
+.tl-dot-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; background: var(--border); border: 2px solid var(--border); transition: all .3s; }
+.tl-dot.done    { background: var(--green); border-color: var(--green); box-shadow: 0 0 8px rgba(0,229,160,.5); }
+.tl-dot.active  { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(0,212,255,.6); animation: pulse 1s infinite; }
+.tl-dot.error   { background: var(--red); border-color: var(--red); }
+.tl-line { width: 1px; height: 18px; background: var(--border); margin: 2px 0; }
+.tl-content { flex: 1; }
+.tl-name  { font-size: 11px; font-weight: 600; color: var(--text); }
+.tl-desc  { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+/* Run button */
+.run-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,212,255,.3);
+  background: linear-gradient(135deg, rgba(0,212,255,.08), rgba(124,106,247,.08));
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .5px;
+  transition: all .2s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.run-btn:hover { background: linear-gradient(135deg,rgba(0,212,255,.15),rgba(124,106,247,.15)); border-color: var(--accent); box-shadow: 0 0 20px rgba(0,212,255,.1); }
+.run-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.spinner {
+  width: 12px; height: 12px;
+  border: 2px solid rgba(0,212,255,.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <h1>ETL POS Monitor</h1>
+      <p>DW_Ventas · SQL Server Docker · .NET 9 Worker Service</p>
+    </div>
+    <div class="header-controls">
+      <div class="pill" id="conn-pill">
+        <span class="dot"></span>
+        <span id="conn-text">Conectando...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label">Registros BD</div>
+      <div class="stat-value" id="stat-bd">—</div>
+      <div class="stat-sub">stg.* extraídos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Registros CSV</div>
+      <div class="stat-value" id="stat-csv">—</div>
+      <div class="stat-sub">4 archivos procesados</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Llamadas API</div>
+      <div class="stat-value" id="stat-api">—</div>
+      <div class="stat-sub">StgOrders recibidas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Eventos</div>
+      <div class="stat-value" id="stat-logs">0</div>
+      <div class="stat-sub">logs capturados</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <!-- Log panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="icon">▶</div>
+          Stream de eventos
+        </div>
+        <div class="panel-actions">
+          <button class="btn" onclick="clearLogs()">Limpiar</button>
+          <button class="btn" onclick="toggleScroll()" id="scroll-btn">Auto ↓</button>
+        </div>
+      </div>
+      <div id="log-stream">
+        <div class="empty-state" id="empty-state">
+          <div class="big">⬡</div>
+          <p>Esperando conexión al worker...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side panels -->
+    <div class="side-panels">
+
+      <!-- Run button -->
+      <button class="run-btn" id="run-btn" onclick="reconnect()">
+        <span class="spinner" id="spinner"></span>
+        <span id="run-text">▶ Conectar al Worker</span>
+      </button>
+
+      <!-- SQL Server -->
+      <div class="source-card">
+        <div class="source-header">
+          <div class="source-name">
+            <div class="source-icon" style="background:rgba(0,212,255,.1);color:var(--accent)">🗄</div>
+            SQL Server
+          </div>
+          <span class="status-tag status-idle" id="bd-status">IDLE</span>
+        </div>
+        <div class="source-body">
+          <div class="source-rows">
+            <div class="source-row"><span class="source-row-label">Host</span><span class="source-row-val accent">127.0.0.1,1433</span></div>
+            <div class="source-row"><span class="source-row-label">Base de datos</span><span class="source-row-val">DW_Ventas</span></div>
+            <div class="source-row"><span class="source-row-label">Customers</span><span class="source-row-val green" id="bd-customers">—</span></div>
+            <div class="source-row"><span class="source-row-label">Orders</span><span class="source-row-val green" id="bd-orders">—</span></div>
+            <div class="source-row"><span class="source-row-label">OrderDetails</span><span class="source-row-val green" id="bd-details">—</span></div>
+            <div class="source-row"><span class="source-row-label">Products</span><span class="source-row-val green" id="bd-products">—</span></div>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-label"><span>Progreso</span><span id="bd-pct">0%</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="bd-bar" style="--fill-from:var(--accent);--fill-to:var(--accent2)"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CSV -->
+      <div class="source-card">
+        <div class="source-header">
+          <div class="source-name">
+            <div class="source-icon" style="background:rgba(0,229,160,.1);color:var(--green)">📄</div>
+            CSV Files
+          </div>
+          <span class="status-tag status-idle" id="csv-status">IDLE</span>
+        </div>
+        <div class="source-body">
+          <div class="source-rows">
+            <div class="source-row"><span class="source-row-label">Carpeta</span><span class="source-row-val">Data/Csv</span></div>
+            <div class="source-row"><span class="source-row-label">customers.csv</span><span class="source-row-val green" id="csv-customers">—</span></div>
+            <div class="source-row"><span class="source-row-label">products.csv</span><span class="source-row-val green" id="csv-products">—</span></div>
+            <div class="source-row"><span class="source-row-label">orders.csv</span><span class="source-row-val green" id="csv-orders">—</span></div>
+            <div class="source-row"><span class="source-row-label">order_details.csv</span><span class="source-row-val green" id="csv-details">—</span></div>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-label"><span>Progreso</span><span id="csv-pct">0%</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="csv-bar" style="--fill-from:var(--green);--fill-to:#00b880"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- API -->
+      <div class="source-card">
+        <div class="source-header">
+          <div class="source-name">
+            <div class="source-icon" style="background:rgba(124,106,247,.1);color:var(--accent2)">🌐</div>
+            REST API
+          </div>
+          <span class="status-tag status-idle" id="api-status">IDLE</span>
+        </div>
+        <div class="source-body">
+          <div class="source-rows">
+            <div class="source-row"><span class="source-row-label">Endpoint</span><span class="source-row-val amber">/orders</span></div>
+            <div class="source-row"><span class="source-row-label">BaseUrl</span><span class="source-row-val" id="api-url" style="font-size:10px">—</span></div>
+            <div class="source-row"><span class="source-row-label">Órdenes</span><span class="source-row-val" id="api-orders">—</span></div>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-label"><span>Progreso</span><span id="api-pct">0%</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="api-bar" style="--fill-from:var(--accent2);--fill-to:#a08aff"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="source-card">
+        <div class="panel-header" style="padding:10px 16px">
+          <div class="panel-title" style="font-size:12px">
+            <div class="icon" style="background:rgba(124,106,247,.1);color:var(--accent2)">◎</div>
+            Fases del ETL
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-1"></div><div class="tl-line"></div></div>
+            <div class="tl-content"><div class="tl-name">Inicialización</div><div class="tl-desc">Worker arranca, scope DI</div></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-2"></div><div class="tl-line"></div></div>
+            <div class="tl-content"><div class="tl-name">Extracción BD</div><div class="tl-desc">4 tablas stg.*</div></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-3"></div><div class="tl-line"></div></div>
+            <div class="tl-content"><div class="tl-name">Extracción CSV</div><div class="tl-desc">4 archivos Data/Csv</div></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-4"></div><div class="tl-line"></div></div>
+            <div class="tl-content"><div class="tl-name">Extracción API</div><div class="tl-desc">IHttpClientFactory</div></div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-5"></div></div>
+            <div class="tl-content"><div class="tl-name">Completado</div><div class="tl-desc">Listo para Transform</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let logCount   = 0;
+let autoScroll = true;
+let es         = null;
+
+const PHASES = {
+  'ETL POS iniciando'        : { tl: 1, bd: null,      csv: null,      api: null },
+  'Extrayendo desde SQL'      : { tl: 2, bd: 'running', csv: null,      api: null },
+  'BD |'                      : { tl: 2, bd: 'done',    csv: null,      api: null },
+  'Extrayendo desde CSV'      : { tl: 3, bd: 'done',    csv: 'running', api: null },
+  'CSV |'                     : { tl: 3, bd: 'done',    csv: 'done',    api: null },
+  'Extrayendo desde API'      : { tl: 4, bd: 'done',    csv: 'done',    api: 'running'},
+  'API:'                      : { tl: 4, bd: 'done',    csv: 'done',    api: null },
+  'sin URL'                   : { tl: 4, bd: 'done',    csv: 'done',    api: 'skipped'},
+  'Extracción completada'     : { tl: 5, bd: 'done',    csv: 'done',    api: 'done' },
+  'Error en la extracción'    : { tl: null,bd: 'error', csv: null,      api: null },
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function setStatus(id, cls, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = `status-tag status-${cls}`;
+  el.textContent = text.toUpperCase();
+}
+
+function setTl(idx, state) {
+  const el = document.getElementById(`tl-${idx}`);
+  if (!el) return;
+  el.className = `tl-dot ${state}`;
+}
+
+function setProgress(prefix, pct) {
+  const bar = document.getElementById(`${prefix}-bar`);
+  const lbl = document.getElementById(`${prefix}-pct`);
+  if (bar) bar.style.width = pct + '%';
+  if (lbl) lbl.textContent = pct + '%';
+}
+
+function flashStat(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = val;
+  el.classList.add('updated');
+  setTimeout(() => el.classList.remove('updated'), 800);
+}
+
+function parseCounts(msg) {
+  // BD | Customers: 500 | Orders: 1200 | Details: 4800 | Products: 300
+  const nums = [...msg.matchAll(/:\s*(\d+)/g)].map(m => parseInt(m[1]));
+  return nums;
+}
+
+function processMessage(raw) {
+  // Detect phase changes
+  for (const [key, phase] of Object.entries(PHASES)) {
+    if (raw.includes(key)) {
+      if (phase.tl)  setTl(phase.tl, 'done');
+      if (phase.bd)  { setStatus('bd-status',  phase.bd,  phase.bd);  if(phase.bd==='running') setProgress('bd',20);  if(phase.bd==='done') setProgress('bd',100); }
+      if (phase.csv) { setStatus('csv-status', phase.csv, phase.csv); if(phase.csv==='running') setProgress('csv',20); if(phase.csv==='done') setProgress('csv',100); }
+      if (phase.api) { setStatus('api-status', phase.api, phase.api); if(phase.api==='running') setProgress('api',50); if(phase.api==='done'||phase.api==='skipped') setProgress('api',100); }
+      break;
+    }
+  }
+
+  // Parse BD counts
+  if (raw.includes('BD |')) {
+    const nums = parseCounts(raw);
+    if (nums[0] != null) { document.getElementById('bd-customers').textContent = nums[0]; }
+    if (nums[1] != null) { document.getElementById('bd-orders').textContent = nums[1]; }
+    if (nums[2] != null) { document.getElementById('bd-details').textContent = nums[2]; }
+    if (nums[3] != null) { document.getElementById('bd-products').textContent = nums[3]; }
+    const total = nums.reduce((a,b) => a+b, 0);
+    flashStat('stat-bd', total.toLocaleString());
+    setProgress('bd', 100);
+  }
+
+  // Parse CSV counts
+  if (raw.includes('CSV |')) {
+    const nums = parseCounts(raw);
+    const total = nums.reduce((a,b) => a+b, 0);
+    flashStat('stat-csv', total.toLocaleString());
+    if (nums[0]) document.getElementById('csv-customers').textContent = nums[0];
+    if (nums[1]) document.getElementById('csv-orders').textContent = nums[1];
+    if (nums[2]) document.getElementById('csv-details').textContent = nums[2];
+    if (nums[3]) document.getElementById('csv-products').textContent = nums[3];
+  }
+
+  if (raw.includes('CSV clientes:'))  { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-customers').textContent=n; }
+  if (raw.includes('CSV productos:')) { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-products').textContent=n; }
+  if (raw.includes('CSV órdenes:'))   { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-orders').textContent=n; }
+  if (raw.includes('CSV detalles:'))  { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-details').textContent=n; }
+
+  // Parse API
+  if (raw.includes('API:') && raw.includes('órdenes')) {
+    const n = raw.match(/(\d+)\s+órdenes/)?.[1] || '0';
+    document.getElementById('api-orders').textContent = n;
+    flashStat('stat-api', parseInt(n).toLocaleString());
+  }
+  if (raw.includes('sin URL') || raw.includes('omitida')) {
+    document.getElementById('api-orders').textContent = 'N/A';
+    document.getElementById('api-url').textContent = 'sin configurar';
+    flashStat('stat-api', 'N/A');
+  }
+
+  // Completion
+  if (raw.includes('Extracción completada')) {
+    for (let i=1;i<=5;i++) setTl(i,'done');
+    setProgress('bd',100); setProgress('csv',100); setProgress('api',100);
+    setStatus('bd-status','done','done');
+    setStatus('csv-status','done','done');
+    document.getElementById('run-text').textContent = '✓ Completado';
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('run-btn').disabled = false;
+  }
+}
+
+// ── Log rendering ──────────────────────────────────────────────────────
+function addLog(raw) {
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+
+  logCount++;
+  flashStat('stat-logs', logCount);
+
+  // Parse parts
+  const timeMatch = raw.match(/\[(\d{2}:\d{2}:\d{2})\]/);
+  const time      = timeMatch ? timeMatch[1] : '';
+  const rest      = raw.replace(/\[\d{2}:\d{2}:\d{2}\]\s*/, '');
+
+  let level = 'info', badge = 'INFO', badgeCls = 'badge-info';
+  if (rest.includes('⚠️') || rest.includes('WARN'))    { level='warn';  badge='WARN';  badgeCls='badge-warn'; }
+  if (rest.includes('❌') || rest.includes('ERROR'))   { level='error'; badge='ERROR'; badgeCls='badge-error'; }
+  if (rest.includes('completada') || rest.includes('exitosa') || rest.includes('✓')) { level='ok'; badge='OK'; badgeCls='badge-ok'; }
+
+  // Extract source
+  const srcMatch = rest.match(/\|\s*([^\|]+?)\s*\|/);
+  const source   = srcMatch ? srcMatch[1].trim() : '';
+  const msg      = rest.replace(/^[ℹ️⚠️❌🔴]+\s*\w*\s*\|\s*[^\|]+\s*\|\s*/, '').trim() || rest;
+
+  const div = document.createElement('div');
+  div.className = `log-entry ${level}`;
+  div.innerHTML = `
+    <span class="log-time">${time}</span>
+    <span class="log-badge ${badgeCls}">${badge}</span>
+    ${source ? `<span class="log-source">${source}</span>` : ''}
+    <span class="log-msg">${msg}</span>
+  `;
+
+  const stream = document.getElementById('log-stream');
+  stream.appendChild(div);
+  if (autoScroll) stream.scrollTop = stream.scrollHeight;
+
+  processMessage(raw);
+}
+
+// ── SSE Connection ─────────────────────────────────────────────────────
+function connect() {
+  if (es) { es.close(); es = null; }
+
+  const pill = document.getElementById('conn-pill');
+  const text = document.getElementById('conn-text');
+
+  es = new EventSource('/etl/stream');
+
+  es.onopen = () => {
+    pill.className = 'pill connected';
+    text.textContent = 'Conectado';
+    document.getElementById('run-text').textContent = '⏳ Ejecutando...';
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('run-btn').disabled = true;
+    setTl(1, 'active');
+  };
+
+  es.onmessage = e => addLog(e.data);
+
+  es.onerror = () => {
+    pill.className = 'pill error';
+    text.textContent = 'Desconectado';
+    document.getElementById('run-text').textContent = '↺ Reconectar';
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('run-btn').disabled = false;
+  };
+
+  // Load history
+  fetch('/etl/logs')
+    .then(r => r.json())
+    .then(logs => logs.forEach(addLog))
+    .catch(() => {});
+}
+
+function reconnect() { logCount=0; connect(); }
+
+function clearLogs() {
+  const stream = document.getElementById('log-stream');
+  stream.innerHTML = '';
+  logCount = 0;
+  flashStat('stat-logs', 0);
+}
+
+function toggleScroll() {
+  autoScroll = !autoScroll;
+  document.getElementById('scroll-btn').textContent = autoScroll ? 'Auto ↓' : 'Manual';
+}
+
+document.getElementById('log-stream').addEventListener('scroll', function() {
+  const atBottom = this.scrollTop + this.clientHeight >= this.scrollHeight - 20;
+  if (atBottom && !autoScroll) { autoScroll = true; document.getElementById('scroll-btn').textContent = 'Auto ↓'; }
+});
+
+// Auto-connect on load
+window.addEventListener('load', connect);
+</script>
+</body>
+</html>

@@ -18,39 +18,36 @@ namespace ETLProject.Infrastructure.Extractors;
         _logger = logger;
     }
 
-    public async Task<IEnumerable<StgOrderDetail>> ExtractAsync()
-    {
-        using var connection = new SqlConnection(_conn);
-        await connection.OpenAsync();
-        _logger.LogInformation("Conexión a la base de datos establecida.");
-
-        var result = await connection.QueryAsync<StgOrderDetail>
-        ("SELECT OrderDetailID, OrderID, ProductID, Quantity, UnitPrice FROM StgOrderDetails");
-
-        return result;
-    }
     public async Task<IEnumerable<StgCustomer>> ExtractCustomersAsync()
     {
-        using var connection = new SqlConnection(_conn);
-        await connection.OpenAsync();
-        return await connection.QueryAsync<StgCustomer>
-        ("SELECT CustomerID, FirstName, LastName, Email, Phone, City, Country FROM StgCustomers");
+        using var conn = new SqlConnection(_conn);
+        await conn.OpenAsync();
+        return await conn.QueryAsync<StgCustomer>(
+            "SELECT CustomerID, FirstName, LastName, Email, Phone, City, Country FROM stg.Stg_Customers");
     }
 
     public async Task<IEnumerable<StgOrder>> ExtractOrdersAsync()
     {
-        using var connection = new SqlConnection(_conn);
-        await connection.OpenAsync();
-        return await connection.QueryAsync<StgOrder>
-        ("SELECT OrderID, CustomerID, OrderDate, StatusOrder FROM StgOrders");
+        using var conn = new SqlConnection(_conn);
+        await conn.OpenAsync();
+        return await conn.QueryAsync<StgOrder>(
+            "SELECT OrderID, CustomerID, OrderDate, StatusOrder FROM stg.Stg_Orders");
+    }
+
+    public async Task<IEnumerable<StgOrderDetail>> ExtractAsync()
+    {
+        using var conn = new SqlConnection(_conn);
+        await conn.OpenAsync();
+        return await conn.QueryAsync<StgOrderDetail>(
+            "SELECT OrderDetailID, OrderID, ProductID, Quantity, UnitPrice FROM stg.Stg_OrderDetails");
     }
 
     public async Task<IEnumerable<StgProduct>> ExtractProductsAsync()
     {
-        using var connection = new SqlConnection(_conn);
-        await connection.OpenAsync();
-        return await connection.QueryAsync<StgProduct>
-        ("SELECT ProductID, ProductName, Category, Price FROM StgProducts");
+        using var conn = new SqlConnection(_conn);
+        await conn.OpenAsync();
+        return await conn.QueryAsync<StgProduct>(
+            "SELECT ProductID, ProductName, Category, Price FROM stg.Stg_Products");
     }
 
 

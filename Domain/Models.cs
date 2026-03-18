@@ -1,40 +1,46 @@
 namespace ETLProject.Domain;
 
-// Starging
+// Staging
 
-public record StgCustomer(
-    int    CustomerID,
-    string FirstName,
-    string LastName,
-    string Email,
-    string Phone,
-    string City,
-    string Country
-);
+public class StgCustomer
+{
+    public int    CustomerID { get; set; }
+    public string FirstName  { get; set; } = string.Empty;
+    public string LastName   { get; set; } = string.Empty;
+    public string Email      { get; set; } = string.Empty;
+    public string Phone      { get; set; } = string.Empty;
+    public string City       { get; set; } = string.Empty;
+    public string Country    { get; set; } = string.Empty;
+}
 
-public record StgOrder(
-    int    OrderID,
-    int    CustomerID,
-    string OrderDate,       
-    string StatusOrder
-);
+public class StgProduct
+{
+    public int    ProductID   { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public string Category    { get; set; } = string.Empty;
+    public string Price       { get; set; } = string.Empty;
+    // Stock no existe en stg.Stg_Products — se ignora al leer el CSV
+}
 
-public record StgOrderDetail(
-    int    OrderDetailID,
-    int    OrderID,
-    int    ProductID,
-    string Quantity,        
-    string UnitPrice        
-);
+public class StgOrder
+{
+    public int    OrderID     { get; set; }
+    public int    CustomerID  { get; set; }
+    public string OrderDate   { get; set; } = string.Empty;
+    public string StatusOrder { get; set; } = string.Empty;
+}
 
-public record StgProduct(
-    int    ProductID,
-    string ProductName,
-    string Category,
-    string Price          
-);
+public class StgOrderDetail
+{
+    public int    OrderDetailID { get; set; }  // existe en stg, no en CSV → se autogenera
+    public int    OrderID       { get; set; }
+    public int    ProductID     { get; set; }
+    public string Quantity      { get; set; } = string.Empty;
+    public string UnitPrice     { get; set; } = string.Empty;
+    // TotalPrice del CSV no existe en stg — se ignora
+}
 
-// Dimenciones
+// Dimensiones
 
 public record DimCliente(
     int    ClienteKey,
@@ -71,8 +77,6 @@ public record DimPais(
     string NombrePais,
     string Region
 );
-
-// Tabla Fact
 
 public record FactVenta(
     long    FactVentaID,

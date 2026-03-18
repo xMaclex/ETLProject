@@ -6,45 +6,44 @@ namespace ETLProject;
 
 public class Worker : BackgroundService
 {
-    private readonly ILogger<Worker>          _logger;
-    private readonly BdExtractor              _bdExtractor;
-    private readonly IExtractor<StgProduct>   _csvExtractor;
-    private readonly IExtractor<StgOrder>     _apiExtractor;
+    private readonly ILogger<Worker>      _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public Worker(
-        ILogger<Worker>        logger,
-        BdExtractor            bdExtractor,
-        IExtractor<StgProduct> csvExtractor,
-        IExtractor<StgOrder>   apiExtractor)
+    public Worker(ILogger<Worker> logger, IServiceScopeFactory scopeFactory)
     {
         _logger       = logger;
-        _bdExtractor  = bdExtractor;
-        _csvExtractor = csvExtractor;
-        _apiExtractor = apiExtractor;
+        _scopeFactory = scopeFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("=== ETL POS iniciando: {time} ===", DateTimeOffset.Now);
 
+        // Crear un scope para resolver los servicios Scoped
+        await using var scope = _scopeFactory.CreateAsyncScope();
+
+        var bdExtractor  = scope.ServiceProvider.GetRequiredService<BdExtractor>();
+        var csvExtractor = scope.ServiceProvider.GetRequiredService<IExtractor<StgProduct>>();
+        var apiExtractor = scope.ServiceProvider.GetRequiredService<IExtractor<StgOrder>>();
+
         try
         {
-            // 1. Staging desde SQL Server (Azure Docker)
-            var customers     = await _bdExtractor.ExtractCustomersAsync();
-            var orders        = await _bdExtractor.ExtractOrdersAsync();
-            var orderDetails  = await _bdExtractor.ExtractAsync();         
-            var productsFromDb = await _bdExtractor.ExtractProductsAsync();
+            // BD — 4 tablas staging
+            var customers    = await bdExtractor.ExtractCustomersAsync();
+            var orders       = await bdExtractor.ExtractOrdersAsync();
+            var orderDetails = await bdExtractor.ExtractAsync();
+            var productsDb   = await bdExtractor.ExtractProductsAsync();
 
             _logger.LogInformation("BD | Customers: {c} | Orders: {o} | Details: {d} | Products: {p}",
-                customers.Count(), orders.Count(), orderDetails.Count(), productsFromDb.Count());
+                customers.Count(), orders.Count(), orderDetails.Count(), productsDb.Count());
 
-            // 2. Productos desde CSV
-            var productsFromCsv = await _csvExtractor.ExtractAsync();
-            _logger.LogInformation("CSV | Productos: {n}", productsFromCsv.Count());
+            // CSV
+            var productsCsv = await csvExtractor.ExtractAsync();
+            _logger.LogInformation("CSV | Productos: {n}", productsCsv.Count());
 
-            // 3. Órdenes desde API
-            var ordersFromApi = await _apiExtractor.ExtractAsync();
-            _logger.LogInformation("API | Órdenes: {n}", ordersFromApi.Count());
+            // API
+            var ordersApi = await apiExtractor.ExtractAsync();
+            _logger.LogInformation("API | Órdenes: {n}", ordersApi.Count());
 
             _logger.LogInformation("=== Extracción completada: {time} ===", DateTimeOffset.Now);
         }

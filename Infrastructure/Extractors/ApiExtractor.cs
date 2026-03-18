@@ -5,31 +5,47 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace ETLProject.Infrastructure.Extractors;
+
 public class ApiExtractor : IExtractor<StgOrder>
 {
-    private readonly HttpClient _http;
-    private readonly string _baseUrl;
+    private readonly IHttpClientFactory    _httpFactory;
+    private readonly string                _baseUrl;
     private readonly ILogger<ApiExtractor> _logger;
 
-    public ApiExtractor(HttpClient http, IConfiguration config, ILogger<ApiExtractor> logger)
+    public ApiExtractor(
+        IHttpClientFactory    httpFactory,
+        IConfiguration        config,
+        ILogger<ApiExtractor> logger)
     {
-        _http = http;
-        _baseUrl = config["ApiSenttings:BaseUrl"]!;
-        _logger = logger;
+        _httpFactory = httpFactory;
+        _baseUrl     = config["ApiSettings:BaseUrl"] ?? string.Empty;
+        _logger      = logger;
     }
 
     public async Task<IEnumerable<StgOrder>> ExtractAsync()
     {
-
-        _logger.LogInformation("API: consultando {url}/orders", _baseUrl);
-        var response = await _http.GetStringAsync($"{_baseUrl}/orders");
-
-        var orders = JsonSerializer.Deserialize<List<StgOrder>>(response, new JsonSerializerOptions
+        if (string.IsNullOrWhiteSpace(_baseUrl))
         {
-            PropertyNameCaseInsensitive = true
-        });
+            _logger.LogWarning("API: BaseUrl no configurada, extracción omitida.");
+            return [];
+        }
 
-        _logger.LogInformation("API: {n} orders obtenidos", orders?.Count ?? 0);
-        return orders ?? [];
+        try
+        {
+            // IHttpClientFactory crea y gestiona el HttpClient correctamente
+            var client   = _httpFactory.CreateClient("ApiClient");
+            var response = await client.GetStringAsync($"{_baseUrl}/orders");
+
+            var orders = JsonSerializer.Deserialize<List<StgOrder>>(response,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            _logger.LogInformation("API: {n} órdenes recibidas", orders?.Count ?? 0);
+            return orders ?? [];
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "API: error al consumir el endpoint {url}", _baseUrl);
+            return [];
+        }
     }
 }
