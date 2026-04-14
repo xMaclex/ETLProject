@@ -1,6 +1,8 @@
 using ETLProject.Application.Interfaces;
 using ETLProject.Domain;
 using ETLProject.Infrastructure.Extractors;
+using ETLProject.Infrastructure.Loaders;
+
 
 namespace ETLProject;
 
@@ -19,37 +21,67 @@ public class Worker : BackgroundService
     {
         _logger.LogInformation("=== ETL POS iniciando: {time} ===", DateTimeOffset.Now);
 
-        // Crear un scope para resolver los servicios Scoped
         await using var scope = _scopeFactory.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
 
-        var bdExtractor  = scope.ServiceProvider.GetRequiredService<BdExtractor>();
-        var csvExtractor = scope.ServiceProvider.GetRequiredService<IExtractor<StgProduct>>();
-        var apiExtractor = scope.ServiceProvider.GetRequiredService<IExtractor<StgOrder>>();
+        // ── Extractores ──────────────────────────────────────────────
+        var bdExtractor  = sp.GetRequiredService<BdExtractor>();
+        var csvExtractor = sp.GetRequiredService<CsvExtractor>();
+        var apiExtractor = sp.GetRequiredService<IExtractor<StgOrder>>();
+
+        // ── Loaders ──────────────────────────────────────────────────
+        var clienteLoader  = sp.GetRequiredService<IDimensionLoader<StgCustomer>>();
+        var productoLoader = sp.GetRequiredService<IDimensionLoader<StgProduct>>();
+        var fechaLoader    = sp.GetRequiredService<IDimensionLoader<StgOrder>>();
+        var paisLoader     = sp.GetRequiredService<IPaisLoader>();
+        var factVentaLoader = sp.GetRequiredService<FactVentaLoader>();
 
         try
         {
-            // BD — 4 tablas staging
-            var customers    = await bdExtractor.ExtractCustomersAsync();
-            var orders       = await bdExtractor.ExtractOrdersAsync();
-            var orderDetails = await bdExtractor.ExtractAsync();
-            var productsDb   = await bdExtractor.ExtractProductsAsync();
-
+            // ── EXTRACCIÓN ────────────────────────────────────────────
+            _logger.LogInformation("Extrayendo desde SQL Server...");
+            var customersDb    = (await bdExtractor.ExtractCustomersAsync()).ToList();
+            var ordersDb       = (await bdExtractor.ExtractOrdersAsync()).ToList();
+            var orderDetailsDb = (await bdExtractor.ExtractAsync()).ToList();
+            var productsDb     = (await bdExtractor.ExtractProductsAsync()).ToList();
             _logger.LogInformation("BD | Customers: {c} | Orders: {o} | Details: {d} | Products: {p}",
-                customers.Count(), orders.Count(), orderDetails.Count(), productsDb.Count());
+                customersDb.Count, ordersDb.Count, orderDetailsDb.Count, productsDb.Count);
 
-            // CSV
-            var productsCsv = await csvExtractor.ExtractAsync();
-            _logger.LogInformation("CSV | Productos: {n}", productsCsv.Count());
+            _logger.LogInformation("Extrayendo desde CSV...");
+            var customersCsv    = (await csvExtractor.ExtractCustomersAsync()).ToList();
+            var ordersCsv       = (await csvExtractor.ExtractOrdersAsync()).ToList();
+            var orderDetailsCsv = (await csvExtractor.ExtractOrderDetailsAsync()).ToList();
+            var productsCsv     = (await csvExtractor.ExtractAsync()).ToList();
+            _logger.LogInformation("CSV | Customers: {c} | Orders: {o} | Details: {d} | Products: {p}",
+                customersCsv.Count, ordersCsv.Count, orderDetailsCsv.Count, productsCsv.Count);
 
-            // API
-            var ordersApi = await apiExtractor.ExtractAsync();
-            _logger.LogInformation("API | Órdenes: {n}", ordersApi.Count());
+            var ordersApi = (await apiExtractor.ExtractAsync()).ToList();
+            _logger.LogInformation("API | Órdenes: {n}", ordersApi.Count);
 
-            _logger.LogInformation("=== Extracción completada: {time} ===", DateTimeOffset.Now);
+            // Combinar fuentes
+            var allCustomers = customersDb.Concat(customersCsv).DistinctBy(c => c.CustomerID).ToList();
+            var allProducts  = productsDb.Concat(productsCsv).DistinctBy(p => p.ProductID).ToList();
+            var allOrders    = ordersDb.Concat(ordersCsv).Concat(ordersApi).DistinctBy(o => o.OrderID).ToList();
+            var allOrderDetails = orderDetailsDb
+                .Concat(orderDetailsCsv)
+                .DistinctBy(od => new { od.OrderID, od.ProductID, od.Quantity, od.UnitPrice })
+                .ToList();
+
+            // ── CARGA DE DIMENSIONES ──────────────────────────────────
+            _logger.LogInformation("Cargando dimensiones...");
+
+            await paisLoader.LoadAsync(allCustomers);
+            await clienteLoader.LoadAsync(allCustomers);
+            await productoLoader.LoadAsync(allProducts);
+            await fechaLoader.LoadAsync(allOrders);
+
+            await factVentaLoader.LoadAsync(allOrders, allOrderDetails, allCustomers, allProducts);
+
+            _logger.LogInformation("=== Extracción, carga de dimensiones y hechos completadas: {time} ===", DateTimeOffset.Now);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error en la extracción ETL");
+            _logger.LogError(ex, "Error en el pipeline ETL");
         }
     }
 }

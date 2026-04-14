@@ -1,8 +1,8 @@
 using System.Text.Json;
 using ETLProject.Application.Interfaces;
 using ETLProject.Domain;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+// using Microsoft.Extensions.Configuration;
+// using Microsoft.Extensions.Logging;
 
 namespace ETLProject.Infrastructure.Extractors;
 
@@ -26,7 +26,7 @@ public class ApiExtractor : IExtractor<StgOrder>
     {
         if (string.IsNullOrWhiteSpace(_baseUrl))
         {
-            _logger.LogWarning("API: BaseUrl no configurada, extracción omitida.");
+            _logger.LogWarning("API: BaseUrl no configurada, extracción omitida. Configure ApiSettings:BaseUrl para habilitar la carga de órdenes desde API.");
             return [];
         }
 
@@ -34,10 +34,21 @@ public class ApiExtractor : IExtractor<StgOrder>
         {
             // IHttpClientFactory crea y gestiona el HttpClient correctamente
             var client   = _httpFactory.CreateClient("ApiClient");
-            var response = await client.GetStringAsync($"{_baseUrl}/orders");
+            var response = await client.GetStringAsync($"{_baseUrl}/posts"); // Endpoint de ejemplo, ajustar según API real
 
-            var orders = JsonSerializer.Deserialize<List<StgOrder>>(response,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            _logger.LogInformation("API: Respuesta raw del endpoint: {response}", response);
+
+            List<StgOrder>? orders;
+            try
+            {
+                orders = JsonSerializer.Deserialize<List<StgOrder>>(response,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "API: Error al deserializar la respuesta JSON");
+                return [];
+            }
 
             _logger.LogInformation("API: {n} órdenes recibidas", orders?.Count ?? 0);
             return orders ?? [];

@@ -7,560 +7,284 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
 <style>
 :root {
-  --bg:       #080c10;
-  --surface:  #0d1117;
-  --surface2: #131a24;
-  --border:   #1e2d3d;
-  --accent:   #00d4ff;
-  --accent2:  #7c6af7;
-  --green:    #00e5a0;
-  --amber:    #ffb340;
-  --red:      #ff4d6a;
-  --text:     #c9d8e8;
-  --muted:    #4a6070;
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-display: 'Syne', sans-serif;
+  --bg:#080c10;--surface:#0d1117;--surface2:#131a24;--border:#1e2d3d;
+  --accent:#00d4ff;--accent2:#7c6af7;--green:#00e5a0;--amber:#ffb340;
+  --red:#ff4d6a;--text:#c9d8e8;--muted:#4a6070;
+  --font-mono:'JetBrains Mono',monospace;--font-display:'Syne',sans-serif;
 }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:1300px;margin:0 auto;padding:24px 20px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.brand h1{font-family:var(--font-display);font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.brand p{color:var(--muted);font-size:11px;margin-top:2px}
+.pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:1px solid var(--border);background:var(--surface);color:var(--muted)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.pill.connected{border-color:rgba(0,229,160,.2);color:var(--green)}
+.pill.connected .dot{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.pill.error{border-color:rgba(255,77,106,.2);color:var(--red)}
+.pill.error .dot{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@keyframes stPulse{0%,100%{opacity:1}50%{opacity:.6}}
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--sc,var(--accent));opacity:.7}
+.stat:nth-child(1){--sc:var(--accent)}.stat:nth-child(2){--sc:var(--green)}.stat:nth-child(3){--sc:var(--accent2)}.stat:nth-child(4){--sc:var(--amber)}
+.stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.stat-val{font-family:var(--font-display);font-size:26px;font-weight:800;color:#fff;line-height:1;transition:color .3s}
+.stat-val.flash{color:var(--sc,var(--accent))}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:3px}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-mono);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+/* Phase bar */
+.phase-bar{display:flex;align-items:center;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 20px;overflow-x:auto;gap:0}
+.phase-step{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.phase-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--muted);transition:all .4s;flex-shrink:0}
+.phase-dot.active{border-color:var(--accent);color:var(--accent);box-shadow:0 0 10px rgba(0,212,255,.3);animation:pulse 1s infinite}
+.phase-dot.done{border-color:var(--green);background:rgba(0,229,160,.12);color:var(--green)}
+.phase-dot.error{border-color:var(--red);background:rgba(255,77,106,.1);color:var(--red)}
+.phase-label{font-size:10px;color:var(--muted);white-space:nowrap}
+.phase-label.active{color:var(--accent)}.phase-label.done{color:var(--green)}
+.phase-connector{width:32px;height:1px;background:var(--border);margin:0 6px;flex-shrink:0;transition:background .4s}
+.phase-connector.done{background:var(--green)}
 
-/* Grid background */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Glow orbs */
-body::after {
-  content: '';
-  position: fixed;
-  top: -200px; left: -200px;
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(124,106,247,.06) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
-
-/* Header */
-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.brand { display: flex; flex-direction: column; gap: 4px; }
-
-.brand h1 {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.brand p { color: var(--muted); font-size: 12px; }
-
-.header-controls { display: flex; align-items: center; gap: 12px; }
-
-.pill {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 14px;
-  border-radius: 100px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.pill .dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.pill.connected .dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
-.pill.error .dot     { background: var(--red); }
-.pill.connected      { border-color: rgba(0,229,160,.2); color: var(--green); }
-
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-/* Stat cards */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-@media(max-width:700px){ .stats { grid-template-columns: repeat(2,1fr); } }
-
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 18px;
-  position: relative;
-  overflow: hidden;
-  transition: border-color .2s;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: var(--accent-color, var(--accent));
-  opacity: .6;
-}
-
-.stat-card:nth-child(1) { --accent-color: var(--accent); }
-.stat-card:nth-child(2) { --accent-color: var(--green); }
-.stat-card:nth-child(3) { --accent-color: var(--accent2); }
-.stat-card:nth-child(4) { --accent-color: var(--amber); }
-
-.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-.stat-value {
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 800;
-  color: #fff;
-  line-height: 1;
-  transition: all .3s;
-}
-.stat-value.updated { color: var(--accent-color, var(--accent)); }
-.stat-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
-
-/* Main layout */
-.main-grid {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 16px;
-}
-@media(max-width:900px){ .main-grid { grid-template-columns: 1fr; } }
-
-/* Log panel */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface2);
-}
-
-.panel-title {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.panel-title .icon {
-  width: 20px; height: 20px;
-  border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px;
-  background: rgba(0,212,255,.1);
-  color: var(--accent);
-}
-
-.panel-actions { display: flex; gap: 8px; }
-
-.btn {
-  padding: 5px 12px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  cursor: pointer;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  transition: all .15s;
-}
-.btn:hover { background: var(--surface2); color: var(--text); border-color: #2a3a4a; }
+/* Layout */
+.main-grid{display:grid;grid-template-columns:1fr 370px;gap:16px}
+@media(max-width:960px){.main-grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
+.panel-title{font-family:var(--font-display);font-size:12px;font-weight:600;color:#fff;display:flex;align-items:center;gap:8px}
+.panel-icon{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.pi-blue{background:rgba(0,212,255,.1);color:var(--accent)}
+.panel-actions{display:flex;gap:6px}
+.btn{padding:4px 10px;border-radius:5px;font-size:10px;font-family:var(--font-mono);cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s}
+.btn:hover{background:var(--surface2);color:var(--text)}
 
 /* Log stream */
-#log-stream {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  min-height: 420px;
-  max-height: 520px;
-  scroll-behavior: smooth;
-}
+#log-stream{flex:1;overflow-y:auto;padding:10px;min-height:400px;max-height:520px}
+#log-stream::-webkit-scrollbar{width:3px}
+#log-stream::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.log-entry{display:flex;gap:8px;padding:5px 6px;border-radius:5px;margin-bottom:2px;font-size:11px;line-height:1.5;animation:fadeIn .15s ease}
+.log-entry:hover{background:var(--surface2)}
+.log-time{color:var(--muted);flex-shrink:0;font-size:10px;padding-top:1px;min-width:52px}
+.log-badge{flex-shrink:0;font-size:9px;font-weight:600;letter-spacing:.4px;padding:1px 5px;border-radius:3px;align-self:flex-start;margin-top:2px;min-width:36px;text-align:center}
+.badge-info{background:rgba(0,212,255,.1);color:var(--accent)}
+.badge-warn{background:rgba(255,179,64,.1);color:var(--amber)}
+.badge-error{background:rgba(255,77,106,.1);color:var(--red)}
+.badge-ok{background:rgba(0,229,160,.1);color:var(--green)}
+.badge-load{background:rgba(124,106,247,.12);color:var(--accent2)}
+.log-src{color:var(--accent2);font-size:10px;flex-shrink:0;min-width:75px}
+.log-msg{color:#a0b8c8;flex:1;word-break:break-word}
+.log-entry.ok .log-msg{color:var(--green)}
+.log-entry.warn .log-msg{color:var(--amber)}
+.log-entry.error .log-msg{color:var(--red)}
+.log-entry.load .log-msg{color:#c4b8ff}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:280px;gap:10px;color:var(--muted);font-size:12px}
 
-#log-stream::-webkit-scrollbar { width: 4px; }
-#log-stream::-webkit-scrollbar-track { background: transparent; }
-#log-stream::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-.log-entry {
-  display: flex;
-  gap: 10px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  margin-bottom: 3px;
-  font-size: 11.5px;
-  line-height: 1.5;
-  animation: fadeIn .2s ease;
-  transition: background .15s;
-}
-.log-entry:hover { background: var(--surface2); }
-
-@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
-
-.log-time { color: var(--muted); flex-shrink: 0; font-size: 10px; padding-top: 1px; }
-.log-badge {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: .5px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  align-self: flex-start;
-  margin-top: 2px;
-}
-.badge-info  { background: rgba(0,212,255,.12); color: var(--accent); }
-.badge-warn  { background: rgba(255,179,64,.12); color: var(--amber); }
-.badge-error { background: rgba(255,77,106,.12); color: var(--red); }
-.badge-ok    { background: rgba(0,229,160,.12); color: var(--green); }
-
-.log-source { color: var(--accent2); font-size: 10px; flex-shrink: 0; }
-.log-msg { color: var(--text); flex: 1; word-break: break-word; }
-
-.log-entry.info  .log-msg { color: #a0b8c8; }
-.log-entry.warn  .log-msg { color: var(--amber); }
-.log-entry.error .log-msg { color: var(--red); }
-.log-entry.ok    .log-msg { color: var(--green); }
-
-/* Empty state */
-.empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 300px; gap: 12px; color: var(--muted);
-}
-.empty-state .big { font-size: 36px; }
-.empty-state p { font-size: 12px; }
-
-/* Side panels */
-.side-panels { display: flex; flex-direction: column; gap: 14px; }
+/* Right col */
+.right-col{display:flex;flex-direction:column;gap:12px}
+.connect-btn{width:100%;padding:11px;border-radius:8px;border:1px solid rgba(0,212,255,.3);background:linear-gradient(135deg,rgba(0,212,255,.07),rgba(124,106,247,.07));color:var(--accent);font-family:var(--font-display);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.connect-btn:hover:not(:disabled){background:linear-gradient(135deg,rgba(0,212,255,.14),rgba(124,106,247,.14));box-shadow:0 0 16px rgba(0,212,255,.1)}
+.connect-btn:disabled{opacity:.4;cursor:not-allowed}
+.spin{width:11px;height:11px;border:2px solid rgba(0,212,255,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:none}
 
 /* Source cards */
-.source-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
+.src-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.src-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.src-name{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;font-family:var(--font-display);color:#fff}
+.src-icon{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.si-blue{background:rgba(0,212,255,.1);color:var(--accent)}
+.si-green{background:rgba(0,229,160,.1);color:var(--green)}
+.si-purple{background:rgba(124,106,247,.1);color:var(--accent2)}
+.si-amber{background:rgba(255,179,64,.1);color:var(--amber)}
+.status-tag{font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+.s-idle{background:rgba(74,96,112,.15);color:var(--muted);border:1px solid rgba(74,96,112,.2)}
+.s-running{background:rgba(0,212,255,.08);color:var(--accent);border:1px solid rgba(0,212,255,.15);animation:stPulse 1.5s infinite}
+.s-done{background:rgba(0,229,160,.08);color:var(--green);border:1px solid rgba(0,229,160,.15)}
+.s-error{background:rgba(255,77,106,.08);color:var(--red);border:1px solid rgba(255,77,106,.15)}
+.s-skip{background:rgba(255,179,64,.07);color:var(--amber);border:1px solid rgba(255,179,64,.12)}
+.src-body{padding:10px 14px}
+.src-row{display:flex;align-items:center;justify-content:space-between;font-size:11px;margin-bottom:5px}
+.src-row:last-child{margin-bottom:0}
+.src-row-label{color:var(--muted)}
+.src-row-val{font-weight:600;color:var(--text)}
+.v-accent{color:var(--accent)}.v-green{color:var(--green)}.v-amber{color:var(--amber)}.v-purple{color:var(--accent2)}
+.prog-wrap{margin-top:8px}
+.prog-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
+.prog-bar{height:3px;background:var(--border);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;width:0%;transition:width .6s ease}
+.pf-blue{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.pf-green{background:linear-gradient(90deg,var(--green),#00b880)}
+.pf-purple{background:linear-gradient(90deg,var(--accent2),#a08aff)}
+.pf-amber{background:linear-gradient(90deg,var(--amber),#ff9a00)}
 
-.source-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
-
-.source-name {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; font-weight: 600;
-  font-family: var(--font-display);
-  color: #fff;
-}
-
-.source-icon {
-  width: 26px; height: 26px; border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px;
-}
-
-.status-tag {
-  font-size: 10px; font-weight: 600;
-  padding: 3px 8px; border-radius: 20px;
-  text-transform: uppercase; letter-spacing: .4px;
-}
-.status-idle    { background: rgba(74,96,112,.2);   color: var(--muted);  border: 1px solid rgba(74,96,112,.3); }
-.status-running { background: rgba(0,212,255,.1);   color: var(--accent); border: 1px solid rgba(0,212,255,.2); animation: statusPulse 1.5s infinite; }
-.status-done    { background: rgba(0,229,160,.1);   color: var(--green);  border: 1px solid rgba(0,229,160,.2); }
-.status-error   { background: rgba(255,77,106,.1);  color: var(--red);    border: 1px solid rgba(255,77,106,.2); }
-.status-skipped { background: rgba(255,179,64,.08); color: var(--amber);  border: 1px solid rgba(255,179,64,.15); }
-
-@keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-
-.source-body { padding: 12px 16px; }
-
-.source-rows { display: flex; flex-direction: column; gap: 7px; }
-
-.source-row {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 11px;
-}
-
-.source-row-label { color: var(--muted); }
-.source-row-val   { color: var(--text); font-weight: 600; }
-.source-row-val.accent  { color: var(--accent); }
-.source-row-val.green   { color: var(--green); }
-.source-row-val.amber   { color: var(--amber); }
-
-/* Progress bar */
-.progress-wrap { margin-top: 10px; }
-.progress-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
-.progress-bar { height: 3px; background: var(--border); border-radius: 3px; overflow: hidden; }
-.progress-fill {
-  height: 100%; border-radius: 3px;
-  background: linear-gradient(90deg, var(--fill-from, var(--accent)), var(--fill-to, var(--accent2)));
-  width: 0%;
-  transition: width .6s ease;
-}
-
-/* Timeline */
-.timeline { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
-.tl-item { display: flex; gap: 10px; align-items: flex-start; }
-.tl-dot-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; }
-.tl-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; background: var(--border); border: 2px solid var(--border); transition: all .3s; }
-.tl-dot.done    { background: var(--green); border-color: var(--green); box-shadow: 0 0 8px rgba(0,229,160,.5); }
-.tl-dot.active  { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(0,212,255,.6); animation: pulse 1s infinite; }
-.tl-dot.error   { background: var(--red); border-color: var(--red); }
-.tl-line { width: 1px; height: 18px; background: var(--border); margin: 2px 0; }
-.tl-content { flex: 1; }
-.tl-name  { font-size: 11px; font-weight: 600; color: var(--text); }
-.tl-desc  { font-size: 10px; color: var(--muted); margin-top: 1px; }
-
-/* Run button */
-.run-btn {
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(0,212,255,.3);
-  background: linear-gradient(135deg, rgba(0,212,255,.08), rgba(124,106,247,.08));
-  color: var(--accent);
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: .5px;
-  transition: all .2s;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.run-btn:hover { background: linear-gradient(135deg,rgba(0,212,255,.15),rgba(124,106,247,.15)); border-color: var(--accent); box-shadow: 0 0 20px rgba(0,212,255,.1); }
-.run-btn:disabled { opacity: .4; cursor: not-allowed; }
-
-.spinner {
-  width: 12px; height: 12px;
-  border: 2px solid rgba(0,212,255,.3);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin .6s linear infinite;
-  display: none;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+/* Dim grid */
+.dim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dim-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;transition:border-color .3s}
+.dim-card.active{border-color:rgba(255,179,64,.5)}
+.dim-card.done{border-color:rgba(0,229,160,.3)}
+.dim-card.error{border-color:rgba(255,77,106,.3)}
+.dim-name{font-family:var(--font-display);font-size:11px;font-weight:600;color:#fff;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+.dim-count{font-size:20px;font-weight:800;font-family:var(--font-display);color:var(--amber);line-height:1;transition:color .3s}
+.dim-count.done{color:var(--green)}
+.dim-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.dim-prog{height:2px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden}
+.dim-prog-fill{height:100%;width:0%;border-radius:2px;background:var(--amber);transition:width .5s ease}
+.dim-card.done .dim-prog-fill{background:var(--green)}
 </style>
 </head>
 <body>
-<div class="container">
+<div class="wrap">
 
-  <!-- Header -->
   <header>
     <div class="brand">
-      <h1>ETL POS Monitor</h1>
-      <p>DW_Ventas · SQL Server Docker · .NET 9 Worker Service</p>
+      <h1>ETL POS — Monitor</h1>
+      <p>DW_Ventas · SQL Server Docker · .NET 9 · Extracción + Carga de dimensiones</p>
     </div>
-    <div class="header-controls">
-      <div class="pill" id="conn-pill">
-        <span class="dot"></span>
-        <span id="conn-text">Conectando...</span>
-      </div>
-    </div>
+    <div class="pill" id="conn-pill"><span class="dot"></span><span id="conn-text">Desconectado</span></div>
   </header>
 
   <!-- Stats -->
-  <div class="stats">
-    <div class="stat-card">
-      <div class="stat-label">Registros BD</div>
-      <div class="stat-value" id="stat-bd">—</div>
-      <div class="stat-sub">stg.* extraídos</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Registros CSV</div>
-      <div class="stat-value" id="stat-csv">—</div>
-      <div class="stat-sub">4 archivos procesados</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Llamadas API</div>
-      <div class="stat-value" id="stat-api">—</div>
-      <div class="stat-sub">StgOrders recibidas</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Eventos</div>
-      <div class="stat-value" id="stat-logs">0</div>
-      <div class="stat-sub">logs capturados</div>
-    </div>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-label">BD extraídos</div><div class="stat-val" id="s-bd">—</div><div class="stat-sub">stg.* total</div></div>
+    <div class="stat"><div class="stat-label">CSV leídos</div><div class="stat-val" id="s-csv">—</div><div class="stat-sub">4 archivos</div></div>
+    <div class="stat"><div class="stat-label">API órdenes</div><div class="stat-val" id="s-api">—</div><div class="stat-sub">endpoint /orders</div></div>
+    <div class="stat"><div class="stat-label">Dims cargadas</div><div class="stat-val" id="s-dims">0/4</div><div class="stat-sub">DimPais · Cliente · Producto · Fecha</div></div>
   </div>
 
-  <!-- Main grid -->
+  <!-- Phase bar -->
+  <div class="phase-bar">
+    <div class="phase-step"><div class="phase-dot" id="ph-1">1</div><span class="phase-label" id="phl-1">Inicio</span></div>
+    <div class="phase-connector" id="pc-1"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-2">2</div><span class="phase-label" id="phl-2">Extrae BD</span></div>
+    <div class="phase-connector" id="pc-2"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-3">3</div><span class="phase-label" id="phl-3">Extrae CSV</span></div>
+    <div class="phase-connector" id="pc-3"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-4">4</div><span class="phase-label" id="phl-4">Extrae API</span></div>
+    <div class="phase-connector" id="pc-4"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-5">5</div><span class="phase-label" id="phl-5">DimPais</span></div>
+    <div class="phase-connector" id="pc-5"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-6">6</div><span class="phase-label" id="phl-6">DimCliente</span></div>
+    <div class="phase-connector" id="pc-6"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-7">7</div><span class="phase-label" id="phl-7">DimProducto</span></div>
+    <div class="phase-connector" id="pc-7"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-8">8</div><span class="phase-label" id="phl-8">DimFecha</span></div>
+    <div class="phase-connector" id="pc-8"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-9">9</div><span class="phase-label" id="phl-9">FactVenta</span></div>
+    <div class="phase-connector" id="pc-9"></div>
+    <div class="phase-step"><div class="phase-dot" id="ph-10">✓</div><span class="phase-label" id="phl-10">Completado</span></div>
+  </div>
+
   <div class="main-grid">
 
     <!-- Log panel -->
     <div class="panel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <div class="icon">▶</div>
-          Stream de eventos
-        </div>
+      <div class="panel-head">
+        <div class="panel-title"><div class="panel-icon pi-blue">▶</div>Stream de eventos</div>
         <div class="panel-actions">
           <button class="btn" onclick="clearLogs()">Limpiar</button>
-          <button class="btn" onclick="toggleScroll()" id="scroll-btn">Auto ↓</button>
+          <button class="btn" id="scroll-btn" onclick="toggleScroll()">Auto ↓</button>
         </div>
       </div>
       <div id="log-stream">
-        <div class="empty-state" id="empty-state">
-          <div class="big">⬡</div>
+        <div class="empty-state" id="empty">
+          <div style="font-size:28px;opacity:.25">⬡</div>
           <p>Esperando conexión al worker...</p>
         </div>
       </div>
     </div>
 
-    <!-- Side panels -->
-    <div class="side-panels">
+    <!-- Right column -->
+    <div class="right-col">
 
-      <!-- Run button -->
-      <button class="run-btn" id="run-btn" onclick="reconnect()">
-        <span class="spinner" id="spinner"></span>
-        <span id="run-text">▶ Conectar al Worker</span>
+      <button class="connect-btn" id="conn-btn" onclick="reconnect()">
+        <span class="spin" id="spinner"></span>
+        <span id="btn-text">▶ Conectar al Worker</span>
       </button>
 
       <!-- SQL Server -->
-      <div class="source-card">
-        <div class="source-header">
-          <div class="source-name">
-            <div class="source-icon" style="background:rgba(0,212,255,.1);color:var(--accent)">🗄</div>
-            SQL Server
-          </div>
-          <span class="status-tag status-idle" id="bd-status">IDLE</span>
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-name"><div class="src-icon si-blue">🗄</div>SQL Server</div>
+          <span class="status-tag s-idle" id="bd-st">IDLE</span>
         </div>
-        <div class="source-body">
-          <div class="source-rows">
-            <div class="source-row"><span class="source-row-label">Host</span><span class="source-row-val accent">127.0.0.1,1433</span></div>
-            <div class="source-row"><span class="source-row-label">Base de datos</span><span class="source-row-val">DW_Ventas</span></div>
-            <div class="source-row"><span class="source-row-label">Customers</span><span class="source-row-val green" id="bd-customers">—</span></div>
-            <div class="source-row"><span class="source-row-label">Orders</span><span class="source-row-val green" id="bd-orders">—</span></div>
-            <div class="source-row"><span class="source-row-label">OrderDetails</span><span class="source-row-val green" id="bd-details">—</span></div>
-            <div class="source-row"><span class="source-row-label">Products</span><span class="source-row-val green" id="bd-products">—</span></div>
-          </div>
-          <div class="progress-wrap">
-            <div class="progress-label"><span>Progreso</span><span id="bd-pct">0%</span></div>
-            <div class="progress-bar"><div class="progress-fill" id="bd-bar" style="--fill-from:var(--accent);--fill-to:var(--accent2)"></div></div>
-          </div>
+        <div class="src-body">
+          <div class="src-row"><span class="src-row-label">Host</span><span class="src-row-val v-accent">127.0.0.1,1433</span></div>
+          <div class="src-row"><span class="src-row-label">Customers</span><span class="src-row-val v-green" id="bd-c">—</span></div>
+          <div class="src-row"><span class="src-row-label">Orders</span><span class="src-row-val v-green" id="bd-o">—</span></div>
+          <div class="src-row"><span class="src-row-label">Products</span><span class="src-row-val v-green" id="bd-p">—</span></div>
+          <div class="prog-wrap"><div class="prog-lbl"><span>Progreso</span><span id="bd-pct">0%</span></div><div class="prog-bar"><div class="prog-fill pf-blue" id="bd-bar"></div></div></div>
         </div>
       </div>
 
       <!-- CSV -->
-      <div class="source-card">
-        <div class="source-header">
-          <div class="source-name">
-            <div class="source-icon" style="background:rgba(0,229,160,.1);color:var(--green)">📄</div>
-            CSV Files
-          </div>
-          <span class="status-tag status-idle" id="csv-status">IDLE</span>
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-name"><div class="src-icon si-green">📄</div>CSV Files</div>
+          <span class="status-tag s-idle" id="csv-st">IDLE</span>
         </div>
-        <div class="source-body">
-          <div class="source-rows">
-            <div class="source-row"><span class="source-row-label">Carpeta</span><span class="source-row-val">Data/Csv</span></div>
-            <div class="source-row"><span class="source-row-label">customers.csv</span><span class="source-row-val green" id="csv-customers">—</span></div>
-            <div class="source-row"><span class="source-row-label">products.csv</span><span class="source-row-val green" id="csv-products">—</span></div>
-            <div class="source-row"><span class="source-row-label">orders.csv</span><span class="source-row-val green" id="csv-orders">—</span></div>
-            <div class="source-row"><span class="source-row-label">order_details.csv</span><span class="source-row-val green" id="csv-details">—</span></div>
-          </div>
-          <div class="progress-wrap">
-            <div class="progress-label"><span>Progreso</span><span id="csv-pct">0%</span></div>
-            <div class="progress-bar"><div class="progress-fill" id="csv-bar" style="--fill-from:var(--green);--fill-to:#00b880"></div></div>
-          </div>
+        <div class="src-body">
+          <div class="src-row"><span class="src-row-label">customers.csv</span><span class="src-row-val v-green" id="csv-c">—</span></div>
+          <div class="src-row"><span class="src-row-label">products.csv</span><span class="src-row-val v-green" id="csv-p">—</span></div>
+          <div class="src-row"><span class="src-row-label">orders.csv</span><span class="src-row-val v-green" id="csv-o">—</span></div>
+          <div class="prog-wrap"><div class="prog-lbl"><span>Progreso</span><span id="csv-pct">0%</span></div><div class="prog-bar"><div class="prog-fill pf-green" id="csv-bar"></div></div></div>
         </div>
       </div>
 
       <!-- API -->
-      <div class="source-card">
-        <div class="source-header">
-          <div class="source-name">
-            <div class="source-icon" style="background:rgba(124,106,247,.1);color:var(--accent2)">🌐</div>
-            REST API
-          </div>
-          <span class="status-tag status-idle" id="api-status">IDLE</span>
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-name"><div class="src-icon si-purple">🌐</div>REST API</div>
+          <span class="status-tag s-idle" id="api-st">IDLE</span>
         </div>
-        <div class="source-body">
-          <div class="source-rows">
-            <div class="source-row"><span class="source-row-label">Endpoint</span><span class="source-row-val amber">/orders</span></div>
-            <div class="source-row"><span class="source-row-label">BaseUrl</span><span class="source-row-val" id="api-url" style="font-size:10px">—</span></div>
-            <div class="source-row"><span class="source-row-label">Órdenes</span><span class="source-row-val" id="api-orders">—</span></div>
-          </div>
-          <div class="progress-wrap">
-            <div class="progress-label"><span>Progreso</span><span id="api-pct">0%</span></div>
-            <div class="progress-bar"><div class="progress-fill" id="api-bar" style="--fill-from:var(--accent2);--fill-to:#a08aff"></div></div>
-          </div>
+        <div class="src-body">
+          <div class="src-row"><span class="src-row-label">Endpoint</span><span class="src-row-val v-amber">/orders</span></div>
+          <div class="src-row"><span class="src-row-label">Órdenes recibidas</span><span class="src-row-val v-purple" id="api-o">—</span></div>
+          <div class="prog-wrap"><div class="prog-lbl"><span>Progreso</span><span id="api-pct">0%</span></div><div class="prog-bar"><div class="prog-fill pf-purple" id="api-bar"></div></div></div>
         </div>
       </div>
 
-      <!-- Timeline -->
-      <div class="source-card">
-        <div class="panel-header" style="padding:10px 16px">
-          <div class="panel-title" style="font-size:12px">
-            <div class="icon" style="background:rgba(124,106,247,.1);color:var(--accent2)">◎</div>
-            Fases del ETL
-          </div>
+      <!-- Dimension loaders -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-name"><div class="src-icon si-amber">⬡</div>Carga de dimensiones</div>
+          <span class="status-tag s-idle" id="dim-st">PENDIENTE</span>
         </div>
-        <div class="timeline">
-          <div class="tl-item">
-            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-1"></div><div class="tl-line"></div></div>
-            <div class="tl-content"><div class="tl-name">Inicialización</div><div class="tl-desc">Worker arranca, scope DI</div></div>
+        <div class="src-body">
+          <div class="dim-grid">
+            <div class="dim-card" id="d-pais">
+              <div class="dim-name">DimPais <span class="status-tag s-idle" id="dp-st" style="font-size:8px">—</span></div>
+              <div class="dim-count" id="dp-n">—</div>
+              <div class="dim-sub">países únicos</div>
+              <div class="dim-prog"><div class="dim-prog-fill" id="dp-bar"></div></div>
+            </div>
+            <div class="dim-card" id="d-cli">
+              <div class="dim-name">DimCliente <span class="status-tag s-idle" id="dc-st" style="font-size:8px">—</span></div>
+              <div class="dim-count" id="dc-n">—</div>
+              <div class="dim-sub">clientes cargados</div>
+              <div class="dim-prog"><div class="dim-prog-fill" id="dc-bar"></div></div>
+            </div>
+            <div class="dim-card" id="d-prod">
+              <div class="dim-name">DimProducto <span class="status-tag s-idle" id="dpr-st" style="font-size:8px">—</span></div>
+              <div class="dim-count" id="dpr-n">—</div>
+              <div class="dim-sub">productos cargados</div>
+              <div class="dim-prog"><div class="dim-prog-fill" id="dpr-bar"></div></div>
+            </div>
+            <div class="dim-card" id="d-fecha">
+              <div class="dim-name">DimFecha <span class="status-tag s-idle" id="df-st" style="font-size:8px">—</span></div>
+              <div class="dim-count" id="df-n">—</div>
+              <div class="dim-sub">fechas únicas</div>
+              <div class="dim-prog"><div class="dim-prog-fill" id="df-bar"></div></div>
+            </div>
           </div>
-          <div class="tl-item">
-            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-2"></div><div class="tl-line"></div></div>
-            <div class="tl-content"><div class="tl-name">Extracción BD</div><div class="tl-desc">4 tablas stg.*</div></div>
-          </div>
-          <div class="tl-item">
-            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-3"></div><div class="tl-line"></div></div>
-            <div class="tl-content"><div class="tl-name">Extracción CSV</div><div class="tl-desc">4 archivos Data/Csv</div></div>
-          </div>
-          <div class="tl-item">
-            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-4"></div><div class="tl-line"></div></div>
-            <div class="tl-content"><div class="tl-name">Extracción API</div><div class="tl-desc">IHttpClientFactory</div></div>
-          </div>
-          <div class="tl-item">
-            <div class="tl-dot-wrap"><div class="tl-dot" id="tl-5"></div></div>
-            <div class="tl-content"><div class="tl-name">Completado</div><div class="tl-desc">Listo para Transform</div></div>
+          <div class="prog-wrap" style="margin-top:10px">
+            <div class="prog-lbl"><span>Total dimensiones</span><span id="dim-pct">0%</span></div>
+            <div class="prog-bar"><div class="prog-fill pf-amber" id="dim-bar"></div></div>
           </div>
         </div>
       </div>
@@ -570,218 +294,157 @@ header {
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────
-let logCount   = 0;
-let autoScroll = true;
-let es         = null;
+let logCount=0, autoScroll=true, es=null, dimsLoaded=0;
 
-const PHASES = {
-  'ETL POS iniciando'        : { tl: 1, bd: null,      csv: null,      api: null },
-  'Extrayendo desde SQL'      : { tl: 2, bd: 'running', csv: null,      api: null },
-  'BD |'                      : { tl: 2, bd: 'done',    csv: null,      api: null },
-  'Extrayendo desde CSV'      : { tl: 3, bd: 'done',    csv: 'running', api: null },
-  'CSV |'                     : { tl: 3, bd: 'done',    csv: 'done',    api: null },
-  'Extrayendo desde API'      : { tl: 4, bd: 'done',    csv: 'done',    api: 'running'},
-  'API:'                      : { tl: 4, bd: 'done',    csv: 'done',    api: null },
-  'sin URL'                   : { tl: 4, bd: 'done',    csv: 'done',    api: 'skipped'},
-  'Extracción completada'     : { tl: 5, bd: 'done',    csv: 'done',    api: 'done' },
-  'Error en la extracción'    : { tl: null,bd: 'error', csv: null,      api: null },
-};
-
-// ── Helpers ────────────────────────────────────────────────────────────
-function setStatus(id, cls, text) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.className = `status-tag status-${cls}`;
-  el.textContent = text.toUpperCase();
+function setPhase(n,state){
+  const dot=document.getElementById(`ph-${n}`);
+  const lbl=document.getElementById(`phl-${n}`);
+  const con=document.getElementById(`pc-${n}`);
+  if(dot) dot.className=`phase-dot ${state}`;
+  if(lbl) lbl.className=`phase-label ${state}`;
+  if(con && state==='done') con.classList.add('done');
 }
 
-function setTl(idx, state) {
-  const el = document.getElementById(`tl-${idx}`);
-  if (!el) return;
-  el.className = `tl-dot ${state}`;
+function setStatus(id,cls,text){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.className=`status-tag s-${cls}`;
+  el.textContent=text.toUpperCase();
 }
 
-function setProgress(prefix, pct) {
-  const bar = document.getElementById(`${prefix}-bar`);
-  const lbl = document.getElementById(`${prefix}-pct`);
-  if (bar) bar.style.width = pct + '%';
-  if (lbl) lbl.textContent = pct + '%';
+function setProgress(barId,pctId,pct){
+  const b=document.getElementById(barId);
+  const p=document.getElementById(pctId);
+  if(b) b.style.width=pct+'%';
+  if(p) p.textContent=pct+'%';
 }
 
-function flashStat(id, val) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = val;
-  el.classList.add('updated');
-  setTimeout(() => el.classList.remove('updated'), 800);
+function flashStat(id,val){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=val;
+  el.classList.add('flash');
+  setTimeout(()=>el.classList.remove('flash'),700);
 }
 
-function parseCounts(msg) {
-  // BD | Customers: 500 | Orders: 1200 | Details: 4800 | Products: 300
-  const nums = [...msg.matchAll(/:\s*(\d+)/g)].map(m => parseInt(m[1]));
-  return nums;
+function setDim(prefix,cardId,count,state){
+  const card=document.getElementById(cardId);
+  const num=document.getElementById(`${prefix}-n`);
+  const bar=document.getElementById(`${prefix}-bar`);
+  const st=document.getElementById(`${prefix}-st`);
+  if(card) card.className=`dim-card ${state}`;
+  if(num){ num.textContent=count!==null?count:'—'; if(state==='done') num.classList.add('done'); else num.classList.remove('done'); }
+  if(bar) bar.style.width=state==='done'?'100%':state==='active'?'55%':'0%';
+  if(st){ const c=state==='active'?'running':state==='done'?'done':'idle'; st.className=`status-tag s-${c}`; st.textContent=state==='active'?'CARG...':state==='done'?'OK':'—'; }
 }
 
-function processMessage(raw) {
-  // Detect phase changes
-  for (const [key, phase] of Object.entries(PHASES)) {
-    if (raw.includes(key)) {
-      if (phase.tl)  setTl(phase.tl, 'done');
-      if (phase.bd)  { setStatus('bd-status',  phase.bd,  phase.bd);  if(phase.bd==='running') setProgress('bd',20);  if(phase.bd==='done') setProgress('bd',100); }
-      if (phase.csv) { setStatus('csv-status', phase.csv, phase.csv); if(phase.csv==='running') setProgress('csv',20); if(phase.csv==='done') setProgress('csv',100); }
-      if (phase.api) { setStatus('api-status', phase.api, phase.api); if(phase.api==='running') setProgress('api',50); if(phase.api==='done'||phase.api==='skipped') setProgress('api',100); }
-      break;
-    }
+function processMessage(raw){
+  if(raw.includes('ETL POS iniciando')){ setPhase(1,'done'); setPhase(2,'active'); }
+
+  if(raw.includes('Extrayendo desde SQL')){ setStatus('bd-st','running','extrayendo'); setProgress('bd-bar','bd-pct',20); }
+  if(raw.includes('BD |')){
+    const nums=[...raw.matchAll(/:\s*(\d+)/g)].map(m=>parseInt(m[1]));
+    if(nums[0]) document.getElementById('bd-c').textContent=nums[0];
+    if(nums[1]) document.getElementById('bd-o').textContent=nums[1];
+    if(nums[3]) document.getElementById('bd-p').textContent=nums[3];
+    flashStat('s-bd',nums.reduce((a,b)=>a+b,0).toLocaleString());
+    setStatus('bd-st','done','listo'); setProgress('bd-bar','bd-pct',100);
+    setPhase(2,'done'); setPhase(3,'active');
   }
 
-  // Parse BD counts
-  if (raw.includes('BD |')) {
-    const nums = parseCounts(raw);
-    if (nums[0] != null) { document.getElementById('bd-customers').textContent = nums[0]; }
-    if (nums[1] != null) { document.getElementById('bd-orders').textContent = nums[1]; }
-    if (nums[2] != null) { document.getElementById('bd-details').textContent = nums[2]; }
-    if (nums[3] != null) { document.getElementById('bd-products').textContent = nums[3]; }
-    const total = nums.reduce((a,b) => a+b, 0);
-    flashStat('stat-bd', total.toLocaleString());
-    setProgress('bd', 100);
+  if(raw.includes('Extrayendo desde CSV')){ setStatus('csv-st','running','leyendo'); setProgress('csv-bar','csv-pct',20); }
+  if(raw.includes('CSV clientes:')){ const n=raw.match(/:\s*(\d+)/)?.[1]; if(n){ document.getElementById('csv-c').textContent=n; setProgress('csv-bar','csv-pct',40); } }
+  if(raw.includes('CSV productos:')){ const n=raw.match(/:\s*(\d+)/)?.[1]; if(n){ document.getElementById('csv-p').textContent=n; setProgress('csv-bar','csv-pct',70); } }
+  if(raw.includes('CSV |')||(raw.includes('CSV')&&raw.includes('órdenes'))){
+    const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-o').textContent=n;
+    const c=parseInt(document.getElementById('csv-c').textContent)||0;
+    const p=parseInt(document.getElementById('csv-p').textContent)||0;
+    flashStat('s-csv',(c+p+(parseInt(n)||0)).toLocaleString());
+    setStatus('csv-st','done','listo'); setProgress('csv-bar','csv-pct',100);
+    setPhase(3,'done'); setPhase(4,'active');
   }
 
-  // Parse CSV counts
-  if (raw.includes('CSV |')) {
-    const nums = parseCounts(raw);
-    const total = nums.reduce((a,b) => a+b, 0);
-    flashStat('stat-csv', total.toLocaleString());
-    if (nums[0]) document.getElementById('csv-customers').textContent = nums[0];
-    if (nums[1]) document.getElementById('csv-orders').textContent = nums[1];
-    if (nums[2]) document.getElementById('csv-details').textContent = nums[2];
-    if (nums[3]) document.getElementById('csv-products').textContent = nums[3];
+  if(raw.includes('API')&&(raw.includes('órdenes')||raw.includes('omitida')||raw.includes('sin URL'))){
+    const n=raw.match(/(\d+)\s+órdenes/)?.[1]||'0';
+    document.getElementById('api-o').textContent=raw.includes('omitida')?'N/A':n;
+    flashStat('s-api',raw.includes('omitida')?'N/A':parseInt(n).toLocaleString());
+    setStatus('api-st',raw.includes('omitida')?'skip':'done',raw.includes('omitida')?'omitida':'listo');
+    setProgress('api-bar','api-pct',100);
+    setPhase(4,'done'); setPhase(5,'active');
+    setStatus('dim-st','running','cargando');
   }
 
-  if (raw.includes('CSV clientes:'))  { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-customers').textContent=n; }
-  if (raw.includes('CSV productos:')) { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-products').textContent=n; }
-  if (raw.includes('CSV órdenes:'))   { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-orders').textContent=n; }
-  if (raw.includes('CSV detalles:'))  { const n=raw.match(/:\s*(\d+)/)?.[1]; if(n) document.getElementById('csv-details').textContent=n; }
+  if(raw.includes('DimPais:')&&raw.includes('países únicos')){ const n=raw.match(/(\d+)\s+países/)?.[1]; setDim('dp','d-pais',n,'active'); setPhase(5,'active'); }
+  if(raw.includes('DimPais:')&&raw.includes('procesados')){ const n=raw.match(/(\d+)\s+países/)?.[1]; setDim('dp','d-pais',n,'done'); setPhase(5,'done'); setPhase(6,'active'); dimsLoaded++; updateDims(); }
 
-  // Parse API
-  if (raw.includes('API:') && raw.includes('órdenes')) {
-    const n = raw.match(/(\d+)\s+órdenes/)?.[1] || '0';
-    document.getElementById('api-orders').textContent = n;
-    flashStat('stat-api', parseInt(n).toLocaleString());
-  }
-  if (raw.includes('sin URL') || raw.includes('omitida')) {
-    document.getElementById('api-orders').textContent = 'N/A';
-    document.getElementById('api-url').textContent = 'sin configurar';
-    flashStat('stat-api', 'N/A');
+  if(raw.includes('DimCliente: cargando')){ const n=raw.match(/(\d+)\s+registros/)?.[1]; setDim('dc','d-cli',n,'active'); setPhase(6,'active'); }
+  if(raw.includes('DimCliente:')&&raw.includes('procesados')){ const n=raw.match(/(\d+)\s+registros/)?.[1]; setDim('dc','d-cli',n,'done'); setPhase(6,'done'); setPhase(7,'active'); dimsLoaded++; updateDims(); }
+
+  if(raw.includes('DimProducto: cargando')){ const n=raw.match(/(\d+)\s+registros/)?.[1]; setDim('dpr','d-prod',n,'active'); setPhase(7,'active'); }
+  if(raw.includes('DimProducto:')&&raw.includes('procesados')){ const n=raw.match(/(\d+)\s+registros/)?.[1]; setDim('dpr','d-prod',n,'done'); setPhase(7,'done'); setPhase(8,'active'); dimsLoaded++; updateDims(); }
+
+  if(raw.includes('DimFecha:')&&raw.includes('fechas únicas')){ const n=raw.match(/(\d+)\s+fechas/)?.[1]; setDim('df','d-fecha',n,'active'); setPhase(8,'active'); }
+  if(raw.includes('DimFecha:')&&raw.includes('procesadas')){ const n=raw.match(/(\d+)\s+fechas/)?.[1]; setDim('df','d-fecha',n,'done'); setPhase(8,'done'); setPhase(9,'active'); dimsLoaded++; updateDims(); }
+
+  if(raw.includes('FactVenta: comenzando carga de hechos')){ setPhase(9,'active'); setStatus('dim-st','running','cargando'); }
+  if(raw.includes('FactVenta: no hay hechos para cargar')){ setPhase(9,'done'); setPhase(10,'active'); }
+  if(raw.includes('FactVenta:')&&raw.includes('registros insertados')){ setPhase(9,'done'); setPhase(10,'active'); }
+
+  if(raw.includes('carga completadas')||raw.includes('Extracción, carga de dimensiones y hechos')){
+    for(let i=1;i<=10;i++) setPhase(i,'done');
+    setStatus('dim-st','done','completado');
+    flashStat('s-dims','4/4');
+    document.getElementById('btn-text').textContent='✓ Pipeline completado';
+    document.getElementById('spinner').style.display='none';
+    document.getElementById('conn-btn').disabled=false;
   }
 
-  // Completion
-  if (raw.includes('Extracción completada')) {
-    for (let i=1;i<=5;i++) setTl(i,'done');
-    setProgress('bd',100); setProgress('csv',100); setProgress('api',100);
-    setStatus('bd-status','done','done');
-    setStatus('csv-status','done','done');
-    document.getElementById('run-text').textContent = '✓ Completado';
-    document.getElementById('spinner').style.display = 'none';
-    document.getElementById('run-btn').disabled = false;
-  }
+  if(raw.includes('ERROR')||raw.includes('Error en')){ setStatus('bd-st','error','error'); }
 }
 
-// ── Log rendering ──────────────────────────────────────────────────────
-function addLog(raw) {
-  const empty = document.getElementById('empty-state');
-  if (empty) empty.remove();
+function updateDims(){
+  flashStat('s-dims',`${dimsLoaded}/4`);
+  setProgress('dim-bar','dim-pct',dimsLoaded*25);
+}
 
+function addLog(raw){
+  const empty=document.getElementById('empty');
+  if(empty) empty.remove();
   logCount++;
-  flashStat('stat-logs', logCount);
-
-  // Parse parts
-  const timeMatch = raw.match(/\[(\d{2}:\d{2}:\d{2})\]/);
-  const time      = timeMatch ? timeMatch[1] : '';
-  const rest      = raw.replace(/\[\d{2}:\d{2}:\d{2}\]\s*/, '');
-
-  let level = 'info', badge = 'INFO', badgeCls = 'badge-info';
-  if (rest.includes('⚠️') || rest.includes('WARN'))    { level='warn';  badge='WARN';  badgeCls='badge-warn'; }
-  if (rest.includes('❌') || rest.includes('ERROR'))   { level='error'; badge='ERROR'; badgeCls='badge-error'; }
-  if (rest.includes('completada') || rest.includes('exitosa') || rest.includes('✓')) { level='ok'; badge='OK'; badgeCls='badge-ok'; }
-
-  // Extract source
-  const srcMatch = rest.match(/\|\s*([^\|]+?)\s*\|/);
-  const source   = srcMatch ? srcMatch[1].trim() : '';
-  const msg      = rest.replace(/^[ℹ️⚠️❌🔴]+\s*\w*\s*\|\s*[^\|]+\s*\|\s*/, '').trim() || rest;
-
-  const div = document.createElement('div');
-  div.className = `log-entry ${level}`;
-  div.innerHTML = `
-    <span class="log-time">${time}</span>
-    <span class="log-badge ${badgeCls}">${badge}</span>
-    ${source ? `<span class="log-source">${source}</span>` : ''}
-    <span class="log-msg">${msg}</span>
-  `;
-
-  const stream = document.getElementById('log-stream');
+  const time=(raw.match(/\[(\d{2}:\d{2}:\d{2})\]/)||[])[1]||'';
+  const rest=raw.replace(/\[\d{2}:\d{2}:\d{2}\]\s*/,'');
+  let level='info',badge='INFO',badgeCls='badge-info';
+  if(rest.includes('WARN')||rest.includes('⚠️')){ level='warn'; badge='WARN'; badgeCls='badge-warn'; }
+  if(rest.includes('ERROR')||rest.includes('❌')){ level='error'; badge='ERROR'; badgeCls='badge-error'; }
+  if(rest.includes('Dim')&&rest.includes(':')){ level='load'; badge='LOAD'; badgeCls='badge-load'; }
+  if(rest.includes('completad')||rest.includes('✓')){ level='ok'; badge='OK'; badgeCls='badge-ok'; }
+  const src=(rest.match(/\|\s*([^\|]+?)\s*\|/)||[])[1]||'';
+  const msg=rest.replace(/^[ℹ️⚠️❌🔴]+\s*\S*\s*\|\s*[^\|]+\s*\|\s*/,'').trim()||rest;
+  const div=document.createElement('div');
+  div.className=`log-entry ${level}`;
+  div.innerHTML=`<span class="log-time">${time}</span><span class="log-badge ${badgeCls}">${badge}</span>${src?`<span class="log-src">${src}</span>`:''}<span class="log-msg">${msg}</span>`;
+  const stream=document.getElementById('log-stream');
   stream.appendChild(div);
-  if (autoScroll) stream.scrollTop = stream.scrollHeight;
-
+  if(autoScroll) stream.scrollTop=stream.scrollHeight;
   processMessage(raw);
 }
 
-// ── SSE Connection ─────────────────────────────────────────────────────
-function connect() {
-  if (es) { es.close(); es = null; }
-
-  const pill = document.getElementById('conn-pill');
-  const text = document.getElementById('conn-text');
-
-  es = new EventSource('/etl/stream');
-
-  es.onopen = () => {
-    pill.className = 'pill connected';
-    text.textContent = 'Conectado';
-    document.getElementById('run-text').textContent = '⏳ Ejecutando...';
-    document.getElementById('spinner').style.display = 'block';
-    document.getElementById('run-btn').disabled = true;
-    setTl(1, 'active');
-  };
-
-  es.onmessage = e => addLog(e.data);
-
-  es.onerror = () => {
-    pill.className = 'pill error';
-    text.textContent = 'Desconectado';
-    document.getElementById('run-text').textContent = '↺ Reconectar';
-    document.getElementById('spinner').style.display = 'none';
-    document.getElementById('run-btn').disabled = false;
-  };
-
-  // Load history
-  fetch('/etl/logs')
-    .then(r => r.json())
-    .then(logs => logs.forEach(addLog))
-    .catch(() => {});
+function connect(){
+  if(es){ es.close(); es=null; }
+  const pill=document.getElementById('conn-pill');
+  const text=document.getElementById('conn-text');
+  es=new EventSource('/etl/stream');
+  es.onopen=()=>{ pill.className='pill connected'; text.textContent='Conectado'; document.getElementById('btn-text').textContent='⏳ Worker corriendo...'; document.getElementById('spinner').style.display='block'; document.getElementById('conn-btn').disabled=true; setPhase(1,'active'); };
+  es.onmessage=e=>addLog(e.data);
+  es.onerror=()=>{ pill.className='pill error'; text.textContent='Desconectado'; document.getElementById('btn-text').textContent='↺ Reconectar'; document.getElementById('spinner').style.display='none'; document.getElementById('conn-btn').disabled=false; };
+  fetch('/etl/logs').then(r=>r.json()).then(logs=>logs.forEach(addLog)).catch(()=>{});
 }
 
-function reconnect() { logCount=0; connect(); }
-
-function clearLogs() {
-  const stream = document.getElementById('log-stream');
-  stream.innerHTML = '';
-  logCount = 0;
-  flashStat('stat-logs', 0);
-}
-
-function toggleScroll() {
-  autoScroll = !autoScroll;
-  document.getElementById('scroll-btn').textContent = autoScroll ? 'Auto ↓' : 'Manual';
-}
-
-document.getElementById('log-stream').addEventListener('scroll', function() {
-  const atBottom = this.scrollTop + this.clientHeight >= this.scrollHeight - 20;
-  if (atBottom && !autoScroll) { autoScroll = true; document.getElementById('scroll-btn').textContent = 'Auto ↓'; }
-});
-
-// Auto-connect on load
-window.addEventListener('load', connect);
+function reconnect(){ logCount=0; dimsLoaded=0; connect(); }
+function clearLogs(){ document.getElementById('log-stream').innerHTML=''; logCount=0; }
+function toggleScroll(){ autoScroll=!autoScroll; document.getElementById('scroll-btn').textContent=autoScroll?'Auto ↓':'Manual'; }
+document.getElementById('log-stream').addEventListener('scroll',function(){ if(this.scrollTop+this.clientHeight>=this.scrollHeight-20){ autoScroll=true; document.getElementById('scroll-btn').textContent='Auto ↓'; } });
+window.addEventListener('load',connect);
 </script>
 </body>
 </html>
