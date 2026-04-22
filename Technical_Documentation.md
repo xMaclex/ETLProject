@@ -325,6 +325,217 @@ public class ClienteLoader : IDimensionLoader<StgCustomer>
 }
 ```
 
+#### FactVentaLoader
+
+Carga los hechos (fact.FactVentas) después de que todas las dimensiones estén cargadas. Este es un loader especializado que realiza transformaciones complejas: resuelve claves surrogate, valida la integridad referencial y optimiza la carga con bulk inserts.
+
+```csharp
+// Infrastructure/Extractors/Loaders/FactVentaLoader.cs
+
+public class FactVentaLoader
+{
+    private readonly string _conn;
+    private readonly ILogger<FactVentaLoader> _logger;
+
+    public FactVentaLoader(IConfiguration config, ILogger<FactVentaLoader> logger)
+    {
+        _conn   = config.GetConnectionString("DefaultConnection")!;
+        _logger = logger;
+    }
+
+    public async Task LoadAsync(
+        IEnumerable<StgOrder>       orders,
+        IEnumerable<StgOrderDetail> orderDetails,
+        IEnumerable<StgCustomer>    customers,
+        IEnumerable<StgProduct>     products)
+    {
+        _logger.LogInformation("FactVenta: comenzando carga de hechos...");
+
+        // ── 1. MATERIALIZARE LISTAS EN MEMORIA ────────────────────────────────
+        var orderList       = orders.ToList();
+        var orderDetailList = orderDetails.ToList();
+        var customerList    = customers.ToList();
+        var productList     = products.ToList();
+
+        // ── 2. DICCIONARIOS DE LOOKUP ─────────────────────────────────────────
+        // Performance O(1) para búsquedas en vez de O(n)
+        var orderLookup    = orderList.ToDictionary(o => o.OrderID, o => o);
+        var customerLookup = customerList.ToDictionary(c => c.CustomerID, c => c);
+        var productLookup  = productList.ToDictionary(p => p.ProductID, p => p);
+
+        // ── 3. CONSTRUIR REGISTROS DE HECHOS EN MEMORIA ────────────────────────
+        // Se cruzan OrderDetails con Orders, Customers y Products
+        var factRows = new List<FactRowStaging>();
+
+        foreach (var od in orderDetailList)
+        {
+            // Validación referencial
+            if (!orderLookup.TryGetValue(od.OrderID, out var order)) continue;
+            if (!customerLookup.ContainsKey(order.CustomerID)) continue;
+            if (!productLookup.ContainsKey(od.ProductID)) continue;
+
+            var customer = customerLookup[order.CustomerID];
+
+            // Parseo de string a tipos numéricos
+            int.TryParse(od.Quantity, out var cantidad);
+            decimal.TryParse(od.UnitPrice,
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var precioUnitario);
+
+            // Cálculo de FechaKey (formato YYYYMMDD como entero)
+            int fechaKey = 0;
+            if (DateTime.TryParse(order.OrderDate, out var fecha))
+                fechaKey = int.Parse(fecha.ToString("yyyyMMdd"));
+
+            factRows.Add(new FactRowStaging
+            {
+                FechaKey       = fechaKey,
+                ClienteID      = order.CustomerID,
+                ProductoID     = od.ProductID,
+                PaisNombre     = customer.Country.Trim(),
+                Cantidad       = cantidad,
+                PrecioUnitario = precioUnitario,
+                IngresoTotal   = cantidad * precioUnitario,
+                NumeroOrden    = order.OrderID
+            });
+        }
+
+        _logger.LogInformation("FactVenta: {n} filas de hechos construidas en memoria", factRows.Count);
+
+        if (factRows.Count == 0)
+        {
+            _logger.LogInformation("FactVenta: no hay hechos para cargar");
+            return;
+        }
+
+        // ── 4. RESOLVER CLAVES SURROGATE DESDE BASE DE DATOS ──────────────────
+        // Consultamos las dimensiones ya cargadas para obtener las claves surrogate
+        using var conn = new SqlConnection(_conn);
+        await conn.OpenAsync();
+
+        _logger.LogInformation("FactVenta: leyendo claves surrogate de dimensiones...");
+
+        var clienteKeys = (await conn.QueryAsync<(int Key, int ID)>(
+            "SELECT ClienteKey, ClienteID FROM dim.DimCliente"))
+            .ToDictionary(x => x.ID, x => x.Key);
+
+        var productoKeys = (await conn.QueryAsync<(int Key, int ID)>(
+            "SELECT ProductoKey, ProductoID FROM dim.DimProducto"))
+            .ToDictionary(x => x.ID, x => x.Key);
+
+        var paisKeys = (await conn.QueryAsync<(int Key, string Nombre)>(
+            "SELECT PaisKey, NombrePais FROM dim.DimPais"))
+            .ToDictionary(x => x.Nombre, x => x.Key, StringComparer.OrdinalIgnoreCase);
+
+        // ── 5. CREAR DATATABLE CON CLAVES SURROGATE ──────────────────────────
+        var dt = new DataTable();
+        dt.Columns.Add("FechaKey",       typeof(int));
+        dt.Columns.Add("ClienteKey",     typeof(int));
+        dt.Columns.Add("ProductoKey",    typeof(int));
+        dt.Columns.Add("PaisKey",        typeof(int));
+        dt.Columns.Add("Cantidad",       typeof(int));
+        dt.Columns.Add("PrecioUnitario", typeof(decimal));
+        dt.Columns.Add("IngresoTotal",   typeof(decimal));
+        dt.Columns.Add("NumeroOrden",    typeof(int));
+
+        int sinCliente = 0, sinProducto = 0, sinPais = 0;
+
+        foreach (var row in factRows)
+        {
+            var ck = clienteKeys.TryGetValue(row.ClienteID, out var ck_val) ? ck_val : 0;
+            var pk = productoKeys.TryGetValue(row.ProductoID, out var pk_val) ? pk_val : 0;
+            var psk = paisKeys.TryGetValue(row.PaisNombre, out var psk_val) ? psk_val : 0;
+
+            if (ck == 0)  sinCliente++;
+            if (pk == 0)  sinProducto++;
+            if (psk == 0) sinPais++;
+
+            dt.Rows.Add(row.FechaKey, ck, pk, psk,
+                        row.Cantidad, row.PrecioUnitario,
+                        row.IngresoTotal, row.NumeroOrden);
+        }
+
+        if (sinCliente  > 0) _logger.LogWarning("FactVenta: {n} filas sin ClienteKey", sinCliente);
+        if (sinProducto > 0) _logger.LogWarning("FactVenta: {n} filas sin ProductoKey", sinProducto);
+        if (sinPais     > 0) _logger.LogWarning("FactVenta: {n} filas sin PaisKey", sinPais);
+
+        // ── 6. TRUNCATE (más rápido que DELETE) ──────────────────────────────
+        _logger.LogInformation("FactVenta: limpiando tabla fact.FactVentas (TRUNCATE)...");
+        await conn.ExecuteAsync("TRUNCATE TABLE fact.FactVentas");
+
+        // ── 7. TABLA TEMPORAL + BULK INSERT ──────────────────────────────────
+        await conn.ExecuteAsync("""
+            CREATE TABLE #TempFactVentas (
+                FechaKey       INT,
+                ClienteKey     INT,
+                ProductoKey    INT,
+                PaisKey        INT,
+                Cantidad       INT,
+                PrecioUnitario DECIMAL(18,2),
+                IngresoTotal   DECIMAL(18,2),
+                NumeroOrden    INT
+            )
+            """);
+
+        using (var bulk = new SqlBulkCopy(conn))
+        {
+            bulk.DestinationTableName = "#TempFactVentas";
+            bulk.BulkCopyTimeout      = 120;
+            await bulk.WriteToServerAsync(dt);
+        }
+
+        _logger.LogInformation("FactVenta: {n} filas en temporal — insertando...", dt.Rows.Count);
+
+        // ── 8. INSERT FINAL CON VALIDACIÓN ──────────────────────────────────
+        // Solo inserta filas con claves válidas (> 0)
+        const string insertSql = """
+            INSERT INTO fact.FactVentas (
+                FechaKey, ClienteKey, ProductoKey, PaisKey,
+                Cantidad, PrecioUnitario, IngresoTotal, NumeroOrden
+            )
+            SELECT
+                FechaKey, ClienteKey, ProductoKey, PaisKey,
+                Cantidad, PrecioUnitario, IngresoTotal, NumeroOrden
+            FROM #TempFactVentas
+            WHERE ClienteKey  > 0
+              AND ProductoKey > 0
+              AND PaisKey     > 0
+              AND FechaKey    > 0;
+            """;
+
+        var inserted = await conn.ExecuteAsync(insertSql);
+        _logger.LogInformation("FactVenta: {n} registros insertados exitosamente", inserted);
+
+        int omitidas = dt.Rows.Count - inserted;
+        if (omitidas > 0)
+            _logger.LogWarning("FactVenta: {n} filas omitidas por claves inválidas", omitidas);
+    }
+
+    private sealed class FactRowStaging
+    {
+        public int     FechaKey       { get; init; }
+        public int     ClienteID      { get; init; }
+        public int     ProductoID     { get; init; }
+        public string  PaisNombre     { get; init; } = string.Empty;
+        public int     Cantidad       { get; init; }
+        public decimal PrecioUnitario { get; init; }
+        public decimal IngresoTotal   { get; init; }
+        public int     NumeroOrden    { get; init; }
+    }
+}
+```
+
+**Puntos clave de FactVentaLoader:**
+
+- **Diccionarios de lookup**: Utilizados para resoluciones O(1) en lugar de O(n). Crítico para rendimiento con miles de registros.
+- **Validación referencial**: Verifica que existan los padres (Orden, Cliente, Producto) antes de crear el hecho.
+- **Parseo de datos**: Convierte strings a int/decimal con manejo de errores.
+- **Resolución de claves surrogate**: Consulta la BD para obtener las claves de las dimensiones ya cargadas.
+- **DataTable + SqlBulkCopy**: Inserta los datos en una tabla temporal para luego hacer INSERT masivo, optimizando velocidad.
+- **TRUNCATE**: Más rápido que DELETE porque no registra fila por fila en el log de transacciones.
+- **Validación en INSERT**: Solo inserta filas con todas las claves válidas (> 0), omitiendo registros huérfanos.
+
 ### Logging Personalizado
 
 #### EtlLogBuffer
@@ -406,13 +617,31 @@ public class EtlLogger : ILogger
 
 ## Proceso ETL
 
-El proceso ETL se ejecuta en el servicio hospedado `Worker`.
+El proceso ETL se ejecuta en el servicio hospedado `Worker` y se divide en **3 fases claramente definidas**: Extracción, Carga de Dimensiones y Carga de Hechos. El orden es crítico porque las claves surrogate de las dimensiones deben existir antes de insertar los hechos.
+
+### Orden de Ejecución
+
+```
+Extracción (3 fuentes) → Combinar/Deduplicar → Cargar Dimensiones (orden específico) → Cargar Hechos
+```
+
+**Orden de carga de dimensiones importante:**
+1. **DimPais** (primero, porque DimCliente la referencia)
+2. **DimCliente** (referencia DimPais)
+3. **DimProducto** (independiente)
+4. **DimFecha** (independiente)
+5. **FactVentas** (último, requiere todas las claves surrogate)
+
+### Código del Worker
 
 ```csharp
 // Worker/Worker.cs
 
 public class Worker : BackgroundService
 {
+    private readonly ILogger<Worker>      _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("=== ETL POS iniciando: {time} ===", DateTimeOffset.Now);
@@ -420,44 +649,90 @@ public class Worker : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var sp = scope.ServiceProvider;
 
-        // Extractores
+        // ── Extractores ──────────────────────────────────────────────────────
         var bdExtractor  = sp.GetRequiredService<BdExtractor>();
         var csvExtractor = sp.GetRequiredService<CsvExtractor>();
         var apiExtractor = sp.GetRequiredService<IExtractor<StgOrder>>();
 
-        // Loaders
+        // ── Loaders de dimensiones (se deben cargar ANTES de los hechos) ─────
         var clienteLoader  = sp.GetRequiredService<IDimensionLoader<StgCustomer>>();
         var productoLoader = sp.GetRequiredService<IDimensionLoader<StgProduct>>();
         var fechaLoader    = sp.GetRequiredService<IDimensionLoader<StgOrder>>();
         var paisLoader     = sp.GetRequiredService<IPaisLoader>();
 
+        // ── Loader de hechos (siempre al final) ──────────────────────────────
+        var factVentaLoader = sp.GetRequiredService<FactVentaLoader>();
+
         try
         {
-            // EXTRACCIÓN
+            // ════════════════════════════════════════════════════════════════
+            // FASE 1 — EXTRACCIÓN
+            // ════════════════════════════════════════════════════════════════
+            _logger.LogInformation("Extrayendo desde SQL Server...");
             var customersDb    = (await bdExtractor.ExtractCustomersAsync()).ToList();
             var ordersDb       = (await bdExtractor.ExtractOrdersAsync()).ToList();
             var orderDetailsDb = (await bdExtractor.ExtractAsync()).ToList();
             var productsDb     = (await bdExtractor.ExtractProductsAsync()).ToList();
+            _logger.LogInformation("BD | Customers: {c} | Orders: {o} | Details: {d} | Products: {p}",
+                customersDb.Count, ordersDb.Count, orderDetailsDb.Count, productsDb.Count);
 
+            _logger.LogInformation("Extrayendo desde CSV...");
             var customersCsv    = (await csvExtractor.ExtractCustomersAsync()).ToList();
             var ordersCsv       = (await csvExtractor.ExtractOrdersAsync()).ToList();
             var orderDetailsCsv = (await csvExtractor.ExtractOrderDetailsAsync()).ToList();
             var productsCsv     = (await csvExtractor.ExtractAsync()).ToList();
+            _logger.LogInformation("CSV | Customers: {c} | Orders: {o} | Details: {d} | Products: {p}",
+                customersCsv.Count, ordersCsv.Count, orderDetailsCsv.Count, productsCsv.Count);
 
             var ordersApi = (await apiExtractor.ExtractAsync()).ToList();
+            _logger.LogInformation("API | Órdenes: {n}", ordersApi.Count);
 
-            // Combinar fuentes
-            var allCustomers = customersDb.Concat(customersCsv).DistinctBy(c => c.CustomerID).ToList();
-            var allProducts  = productsDb.Concat(productsCsv).DistinctBy(p => p.ProductID).ToList();
-            var allOrders    = ordersDb.Concat(ordersCsv).Concat(ordersApi).DistinctBy(o => o.OrderID).ToList();
+            // ── Combinar y deduplicar por clave natural ───────────────────
+            var allCustomers = customersDb
+                .Concat(customersCsv)
+                .DistinctBy(c => c.CustomerID)
+                .ToList();
 
-            // CARGA DE DIMENSIONES
-            await paisLoader.LoadAsync(allCustomers);
-            await clienteLoader.LoadAsync(allCustomers);
-            await productoLoader.LoadAsync(allProducts);
-            await fechaLoader.LoadAsync(allOrders);
+            var allProducts = productsDb
+                .Concat(productsCsv)
+                .DistinctBy(p => p.ProductID)
+                .ToList();
 
-            _logger.LogInformation("=== Extracción y carga de dimensiones completadas ===");
+            var allOrders = ordersDb
+                .Concat(ordersCsv)
+                .Concat(ordersApi)
+                .DistinctBy(o => o.OrderID)
+                .ToList();
+
+            var allOrderDetails = orderDetailsDb
+                .Concat(orderDetailsCsv)
+                .DistinctBy(od => new { od.OrderID, od.ProductID, od.Quantity, od.UnitPrice })
+                .ToList();
+
+            // ════════════════════════════════════════════════════════════════
+            // FASE 2 — CARGA DE DIMENSIONES
+            // ════════════════════════════════════════════════════════════════
+            _logger.LogInformation("Cargando dimensiones...");
+
+            await paisLoader.LoadAsync(allCustomers);       // 1°: DimPais
+            await clienteLoader.LoadAsync(allCustomers);    // 2°: DimCliente
+            await productoLoader.LoadAsync(allProducts);    // 3°: DimProducto
+            await fechaLoader.LoadAsync(allOrders);         // 4°: DimFecha
+
+            _logger.LogInformation("Dimensiones cargadas. Iniciando carga de hechos...");
+
+            // ════════════════════════════════════════════════════════════════
+            // FASE 3 — CARGA DE HECHOS
+            // ════════════════════════════════════════════════════════════════
+            await factVentaLoader.LoadAsync(
+                allOrders,
+                allOrderDetails,
+                allCustomers,
+                allProducts);
+
+            _logger.LogInformation(
+                "=== Extracción, carga de dimensiones y hechos completadas: {time} ===",
+                DateTimeOffset.Now);
         }
         catch (Exception ex)
         {
@@ -548,6 +823,80 @@ app.Run();
 
 - `GET /etl/logs`: Retorna todos los logs acumulados
 - `GET /etl/stream`: Streaming de logs en tiempo real (Server-Sent Events)
+
+## Flujo Completo del ETL (3 Fases)
+
+### Fase 1: Extracción
+**Responsables:** `BdExtractor`, `CsvExtractor`, `ApiExtractor`
+
+1. **BdExtractor**: Extrae datos de SQL Server
+   - Clientes, Órdenes, Detalles de Órdenes, Productos
+
+2. **CsvExtractor**: Extrae datos de archivos CSV
+   - Clientes, Órdenes, Detalles de Órdenes, Productos
+
+3. **ApiExtractor**: Consume datos de REST API
+   - Órdenes desde endpoint externo
+
+**Proceso de combinación:**
+- Se concatenan datos de múltiples fuentes
+- Se dедупликан por clave natural (`DistinctBy`)
+- Para detalles se usa clave compuesta: `{OrderID, ProductID, Quantity, UnitPrice}`
+
+**Resultado:** Listas consolidadas de clientes, productos, órdenes y detalles listos para cargar.
+
+### Fase 2: Carga de Dimensiones
+**Responsables:** `PaisLoader`, `ClienteLoader`, `ProductoLoader`, `FechaLoader`
+
+**Patrón común para todos los dimension loaders:**
+1. Crear `DataTable` en memoria con los datos
+2. Abrir conexión a BD
+3. Crear tabla temporal `#TempXxx`
+4. Bulk insert a tabla temporal
+5. Ejecutar `MERGE` desde temporal a tabla final (INSERT + UPDATE con deduplicación)
+
+**Orden obligatorio:**
+```
+DimPais (base) 
+  ↓
+DimCliente (referencia Pais)
+  ↓
+DimProducto (independiente)
+  ↓
+DimFecha (independiente)
+```
+
+**Importante:** Las claves naturales (`ClienteID`, `ProductoID`, etc.) se transforman en claves surrogate (`ClienteKey`, `ProductoKey`, etc.) **dentro de la BD**. El Worker solo usa claves naturales; los loaders las resuelven al guardar.
+
+### Fase 3: Carga de Hechos
+**Responsable:** `FactVentaLoader`
+
+Proceso más complejo porque requiere:
+
+1. **Construcción en memoria:**
+   - Cruza `OrderDetails` con `Orders`, `Customers`, `Products`
+   - Usa diccionarios lookup para O(1)
+   - Valida que existan los padres
+   - Parsea tipos de string a números
+   - Calcula `FechaKey` en formato YYYYMMDD
+
+2. **Resolución de claves surrogate:**
+   - Consulta `DIM.DimCliente`, `DIM.DimProducto`, `DIM.DimPais`
+   - Obtiene sus claves usando diccionarios (también O(1))
+
+3. **Carga optimizada:**
+   - Crea tabla temporal
+   - Usa `SqlBulkCopy` (muy rápido)
+   - Ejecuta `INSERT` validando que todas las claves sean > 0
+   - Omite filas huérfanas (sin referencias válidas en dimensiones)
+
+**Validaciones:**
+- Si un `ClienteKey = 0` → fila omitida
+- Si un `ProductoKey = 0` → fila omitida
+- Si un `PaisKey = 0` → fila omitida
+- Si un `FechaKey = 0` → fila omitida
+
+Se registran logs detallados de cuántas filas fallaron en cada validación.
 
 ## Ejecución
 
