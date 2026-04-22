@@ -133,6 +133,127 @@ public record FactVenta(
 );
 ```
 
+## Esquema de Base de Datos
+
+El data warehouse `DW_Ventas` utiliza SQL Server con tres esquemas principales: `dim` para dimensiones, `fact` para hechos y `stg` para tablas de staging.
+
+### Dimensiones (Schema: dim)
+
+#### DimCliente
+```sql
+CREATE TABLE dim.DimCliente (
+    ClienteKey INT IDENTITY(1,1) PRIMARY KEY,
+    ClienteID INT,
+    Nombre VARCHAR(150),
+    Email VARCHAR(150),
+    Pais VARCHAR(100),
+    Ciudad VARCHAR(100),
+    Segmento VARCHAR(100)
+);
+```
+
+#### DimFecha
+```sql
+CREATE TABLE dim.DimFecha (
+    FechaKey INT PRIMARY KEY,
+    FechaCompleta DATE,
+    Anio INT,
+    Mes INT,
+    NombreMes VARCHAR(20),
+    Trimestre INT,
+    Dia INT,
+    DiaSemana VARCHAR(20)
+);
+```
+
+#### DimPais
+```sql
+CREATE TABLE dim.DimPais (
+    PaisKey INT IDENTITY(1,1) PRIMARY KEY,
+    NombrePais VARCHAR(100),
+    Region VARCHAR(100)
+);
+```
+
+#### DimProducto
+```sql
+CREATE TABLE dim.DimProducto (
+    ProductoKey INT IDENTITY(1,1) PRIMARY KEY,
+    ProductoID INT,
+    Nombre VARCHAR(150),
+    Categoria VARCHAR(100),
+    PrecioLista DECIMAL(18,2),
+    Activo BIT
+);
+```
+
+### Hechos (Schema: fact)
+
+#### FactVentas
+```sql
+CREATE TABLE fact.FactVentas (
+    FactVentaID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    FechaKey INT,
+    ProductoKey INT,
+    ClienteKey INT,
+    PaisKey INT,
+    Cantidad INT,
+    PrecioUnitario DECIMAL(18,2),
+    IngresoTotal DECIMAL(18,2),
+    NumeroOrden INT,
+    FOREIGN KEY (FechaKey) REFERENCES dim.DimFecha(FechaKey),
+    FOREIGN KEY (ProductoKey) REFERENCES dim.DimProducto(ProductoKey),
+    FOREIGN KEY (ClienteKey) REFERENCES dim.DimCliente(ClienteKey),
+    FOREIGN KEY (PaisKey) REFERENCES dim.DimPais(PaisKey)
+);
+```
+
+### Staging (Schema: stg)
+
+#### Stg_Customers
+```sql
+CREATE TABLE stg.Stg_Customers (
+    CustomerID INT,
+    FirstName VARCHAR(100),
+    LastName VARCHAR(100),
+    Email VARCHAR(150),
+    Phone VARCHAR(50),
+    City VARCHAR(100),
+    Country VARCHAR(150)
+);
+```
+
+#### Stg_OrderDetails
+```sql
+CREATE TABLE stg.Stg_OrderDetails (
+    OrderDetailID INT,
+    OrderID INT,
+    ProductID INT,
+    Quantity VARCHAR(20),
+    UnitPrice VARCHAR(20)
+);
+```
+
+#### Stg_Orders
+```sql
+CREATE TABLE stg.Stg_Orders (
+    OrderID INT,
+    CustomerID INT,
+    OrderDate VARCHAR(30),
+    StatusOrder VARCHAR(50)
+);
+```
+
+#### Stg_Products
+```sql
+CREATE TABLE stg.Stg_Products (
+    ProductID INT,
+    ProductName VARCHAR(150),
+    Category VARCHAR(100),
+    Price VARCHAR(50)
+);
+```
+
 ## Interfaces de Aplicación
 
 ### Extractor

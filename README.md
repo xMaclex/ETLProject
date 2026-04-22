@@ -44,7 +44,30 @@ ETLProject/
     └── index.html         # Interfaz web
 ```
 
-## 📋 Requisitos
+## �️ Estructura de Base de Datos
+
+El data warehouse `DW_Ventas` está organizado en tres esquemas:
+
+- **dim**: Tablas de dimensiones (DimCliente, DimProducto, DimFecha, DimPais)
+- **fact**: Tablas de hechos (FactVentas)
+- **stg**: Tablas de staging para datos crudos (Stg_Customers, Stg_Orders, etc.)
+
+### Dimensiones
+- **DimCliente**: Información de clientes con claves surrogate
+- **DimProducto**: Catálogo de productos con precios y categorías
+- **DimFecha**: Calendario desnormalizado para análisis temporal
+- **DimPais**: Países con regiones geográficas
+
+### Hechos
+- **FactVentas**: Ventas detalladas con claves foráneas a dimensiones
+
+### Staging
+- **Stg_Customers**: Datos crudos de clientes desde CSV
+- **Stg_Orders**: Órdenes desde CSV o API
+- **Stg_OrderDetails**: Detalles de órdenes
+- **Stg_Products**: Productos desde CSV
+
+## �📋 Requisitos
 
 - **.NET 9.0** o superior
 - **SQL Server** (local o Docker)
@@ -88,12 +111,16 @@ ETLProject/
 
 ### Base de datos
 - **Connection String**: Configura en `appsettings.json` bajo `ConnectionStrings:DefaultConnection`
-- **Tablas requeridas**:
-  - `DimPais`
-  - `DimCliente`
-  - `DimProducto`
-  - `DimFecha`
-  - `FactVenta`
+- **Tablas requeridas** (esquemas dim, fact, stg):
+  - `dim.DimPais` - Dimensión de países
+  - `dim.DimCliente` - Dimensión de clientes
+  - `dim.DimProducto` - Dimensión de productos
+  - `dim.DimFecha` - Dimensión de fechas
+  - `fact.FactVentas` - Hechos de ventas
+  - `stg.Stg_Customers` - Staging de clientes (CSV)
+  - `stg.Stg_Orders` - Staging de órdenes (CSV)
+  - `stg.Stg_OrderDetails` - Staging de detalles de orden (CSV)
+  - `stg.Stg_Products` - Staging de productos (CSV)
 
 ### Fuentes de datos
 - **CSV**: Archivos en `Data/Csv/` (customers.csv, orders.csv, products.csv)
